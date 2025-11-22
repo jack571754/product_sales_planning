@@ -1,0 +1,109 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-11-22 15:17:48.134514",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "goods_plan",
+  "store_id",
+  "\u4ea7\u54c1\u7f16\u7801",
+  "nickname",
+  "name1",
+  "specifications",
+  "float",
+  "brand",
+  "category",
+  "series"
+ ],
+ "fields": [
+  {
+   "fieldname": "\u4ea7\u54c1\u7f16\u7801",
+   "fieldtype": "Link",
+   "label": "\u4ea7\u54c1\u7f16\u7801",
+   "options": "Product List"
+  },
+  {
+   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.nickname",
+   "fieldname": "nickname",
+   "fieldtype": "Data",
+   "label": "\u4ea7\u54c1\u6635\u79f0",
+   "options": "Product List"
+  },
+  {
+   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.name1",
+   "fieldname": "name1",
+   "fieldtype": "Data",
+   "label": "\u4ea7\u54c1\u540d\u79f0"
+  },
+  {
+   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.specifications",
+   "fieldname": "specifications",
+   "fieldtype": "Data",
+   "label": "\u89c4\u683c"
+  },
+  {
+   "bold": 1,
+   "fieldname": "float",
+   "fieldtype": "Int",
+   "label": "\u6570\u91cf"
+  },
+  {
+   "fieldname": "goods_plan",
+   "fieldtype": "Section Break",
+   "label": "\u8d27\u54c1\u8ba1\u5212"
+  },
+  {
+   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.brand",
+   "fieldname": "brand",
+   "fieldtype": "Data",
+   "label": "\u54c1\u724c"
+  },
+  {
+   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.category",
+   "fieldname": "category",
+   "fieldtype": "Data",
+   "label": "\u4ea7\u54c1\u7c7b\u522b"
+  },
+  {
+   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.series",
+   "fieldname": "series",
+   "fieldtype": "Data",
+   "label": "\u4ea7\u54c1\u7cfb\u5217"
+  },
+  {
+   "fieldname": "store_id",
+   "fieldtype": "Link",
+   "label": "\u5e97\u94fa\u7f16\u7801",
+   "options": "Store List",
+   "remember_last_selected_value": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-22 16:00:26.357861",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Commodity Schedule",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

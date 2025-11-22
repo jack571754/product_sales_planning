@@ -5,11 +5,12 @@ frappe.pages['demo-page'].on_page_load = function(wrapper) {
         single_column: true
     });
 
-    page.set_secondary_action('刷新', () => load_data(wrapper), 'refresh');
+    page.set_secondary_action('刷新数据', () => load_data(wrapper), 'refresh');
 
-    // 加载样式
+    // 注入样式
     $('head').append(get_css());
 
+    // 初始加载
     load_data(wrapper);
 };
 
@@ -28,87 +29,98 @@ function render_demo_page(wrapper, data) {
     const $body = $(wrapper).find('.layout-main-section');
     $body.empty();
 
-    // 1. 统计栏 (简单版)
+    // 1. 顶部统计卡片
     const stats_html = `
         <div class="dashboard-stats-row">
             <div class="stat-card">
-                <div class="stat-icon-box" style="background:#E8F5FE; color:#007BFF">
+                <div class="stat-icon-box box-blue">
                     ${frappe.utils.icon('folder', 'md')}
                 </div>
-                <div class="stat-content"><h4>${data.stats.ongoing}</h4><span>进行中计划</span></div>
+                <div class="stat-content">
+                    <h4>${data.stats.ongoing || 0}</h4>
+                    <span>进行中计划</span>
+                </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon-box" style="background:#E6FCF5; color:#0CA678">
+                <div class="stat-icon-box box-green">
                     ${frappe.utils.icon('check-square', 'md')}
                 </div>
-                <div class="stat-content"><h4>${data.tasks.length}</h4><span>待处理店铺</span></div>
+                <div class="stat-content">
+                    <h4>${data.tasks.length || 0}</h4>
+                    <span>待处理店铺</span>
+                </div>
             </div>
         </div>
     `;
 
-    // 2. 任务列表
+    // 2. 任务列表渲染
     let list_html = '';
-    if (data.tasks.length === 0) {
-        list_html = `<div class="empty-state">暂无开启中的提报任务</div>`;
+    if (!data.tasks || data.tasks.length === 0) {
+        list_html = `
+            <div class="empty-state">
+                <div class="empty-icon">${frappe.utils.icon('box', 'xl')}</div>
+                <div class="empty-text">暂无开启中的提报任务</div>
+            </div>`;
     } else {
         data.tasks.forEach(task => {
-            // 头像首字
+            // 数据准备
             const avatar = task.title ? task.title.charAt(0) : '店';
+            const urgent_badge = task.is_urgent ? `<span class="badge-urgent">急</span>` : '';
             
-            // 标签
-            const urgent_badge = task.is_urgent 
-                ? `<span class="badge-urgent">即将截止</span>` : '';
-            
-            // 时间显示逻辑：有提交时间显示提交时间，否则显示截止日
-            let time_info = '';
-            let time_icon = 'calendar';
-            let time_color = '#98A6B5';
+            // 时间逻辑
+            let time_html = '';
+            // if (task.submit_time) {
+            //     time_html = `<span class="text-success">${frappe.utils.icon('check', 'xs')} 已交 ${task.submit_time}</span>`;
+            // } else {
+			const style = task.is_urgent ? 'color:#FA5252; font-weight:bold;' : 'color:#868E96;';
+			time_html = `<span style="${style}">${frappe.utils.icon('calendar', 'xs')} 截止 ${task.deadline}</span>`;
+		// }
 
-            if (task.submit_time) {
-                time_info = `已提: ${task.submit_time}`;
-                time_icon = 'check';
-                time_color = '#2B8A3E'; // 绿色
-            } else {
-                time_info = `截止: ${task.deadline}`;
-                if(task.is_urgent) time_color = '#FA5252'; // 红色
-            }
-
-            list_html += `
-                <div class="task-card" onclick="frappe.set_route('Form', 'Schedule tasks', '${task.parent_id}')">
-                    <div class="store-avatar">${avatar}</div>
-                    
-                    <div class="task-info">
-                        <div class="store-name">
-                            ${task.title} 
-                            <span class="channel-badge">${task.channel}</span>
-                            ${urgent_badge}
-                        </div>
-                        <div class="plan-info">
-                             ${frappe.utils.icon('users', 'xs')} ${task.user} 
-                             <span class="separator">•</span> 
-                             ${task.plan_type}
-                        </div>
-                    </div>
-
-                    <div class="task-meta">
-                        <div class="time-row" style="color: ${time_color}">
-                            ${frappe.utils.icon(time_icon, 'xs')} ${time_info}
-                        </div>
-                        <div class="status-group">
-                            ${get_status_badge(task.child_status, 'sub')}
-                            ${get_status_badge(task.approval_status, 'app')}
-                        </div>
-                    </div>
-                </div>
+            // 状态徽章 (合并提交状态和审批状态)
+            const status_badges = `
+                ${get_status_badge(task.child_status, 'sub')}
+                ${get_status_badge(task.approval_status, 'app')}
             `;
+
+			list_html += `
+				<div class="task-card" onclick="frappe.set_route('store-detail', '${task.store_id}')">
+					
+					<div class="card-left">
+						<div class="store-avatar">${avatar}</div>
+					</div>
+
+					<div class="card-center">
+						<div class="row-title">
+							<span class="store-name">${task.title}</span>
+							<span class="channel-badge">${task.channel}</span>
+							${urgent_badge}
+						</div>
+						<div class="row-meta">
+							<span class="meta-item user-item">
+								${frappe.utils.icon('users', 'xs')} ${task.user}
+							</span>
+							<span class="meta-sep">•</span>
+							<span class="meta-item">${task.plan_type}</span>
+						</div>
+					</div>
+
+					<div class="card-right">
+						<div class="row-time">${time_html}</div>
+						<div class="row-status">${status_badges}</div>
+					</div>
+				</div>
+			`;
         });
     }
 
     const layout = `
         <div class="page-container">
             ${stats_html}
-            <div class="list-header">执行明细 (${data.tasks.length})</div>
-            <div class="task-scroll-container">
+            <div class="section-header">
+                <span>执行明细列表</span>
+                <span class="count-badge">${data.tasks.length}</span>
+            </div>
+            <div class="task-list-wrapper">
                 ${list_html}
             </div>
         </div>
@@ -117,77 +129,102 @@ function render_demo_page(wrapper, data) {
     $body.append(layout);
 }
 
-// 辅助函数：生成状态徽章
+// 辅助：获取状态样式
 function get_status_badge(status, type) {
     if (!status || status === '-' || status === '未开始') {
-        // 如果是审批状态且为空，不显示
-        if (type === 'app') return ''; 
-        return `<span class="status-pill st-default">未开始</span>`;
+        if (type === 'app') return ''; // 未开始时，审批状态不显示
+        return `<span class="status-pill st-gray">未开始</span>`;
     }
 
-    let cls = 'st-default';
-    
-    // 提交状态颜色映射
+    let cls = 'st-gray';
+    const s = status.toString();
+
+    // 提交状态颜色
     if (type === 'sub') {
-        if (['已提交', 'Submitted', '完成'].includes(status)) cls = 'st-submitted';
-        if (['草稿', 'Draft'].includes(status)) cls = 'st-draft';
+        if (['已提交', 'Submitted'].some(k => s.includes(k))) cls = 'st-blue';
+        else if (['草稿', 'Draft'].some(k => s.includes(k))) cls = 'st-orange';
     }
     
-    // 审批状态颜色映射
+    // 审批状态颜色
     if (type === 'app') {
-        if (['通过', 'Approved'].includes(status)) cls = 'ap-approved';
-        if (['驳回', 'Rejected'].includes(status)) cls = 'ap-rejected';
-        if (['审核中', 'Pending'].includes(status)) cls = 'ap-pending';
+        if (['通过', 'Approved'].some(k => s.includes(k))) cls = 'st-green';
+        else if (['驳回', 'Rejected'].some(k => s.includes(k))) cls = 'st-red';
+        else if (['审核', 'Pending'].some(k => s.includes(k))) cls = 'st-yellow';
     }
 
     return `<span class="status-pill ${cls}">${status}</span>`;
 }
 
+// 样式表
 function get_css() {
     return `
     <style>
-        .page-container { padding: 15px; max-width: 1000px; margin: 0 auto; }
+        /* 基础布局 */
+        .page-container { padding: 15px; max-width: 1200px; margin: 0 auto; }
         
         /* 统计卡片 */
         .dashboard-stats-row { display: flex; gap: 20px; margin-bottom: 25px; }
-        .stat-card { flex: 1; background: #fff; border: 1px solid #EBF1F5; border-radius: 8px; padding: 20px; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-        .stat-icon-box { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-right: 15px; }
-        .stat-content h4 { font-size: 24px; margin: 0; font-weight: 700; color: #1F272E; }
-        .stat-content span { color: #8D99A6; font-size: 13px; }
+        .stat-card { flex: 1; background: #fff; border: 1px solid #EBF1F5; border-radius: 12px; padding: 24px; display: flex; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
+        .stat-icon-box { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 16px; }
+        .box-blue { background: #E7F5FF; color: #1864AB; }
+        .box-green { background: #EBFBEE; color: #2B8A3E; }
+        .stat-content h4 { font-size: 26px; margin: 0; font-weight: 700; color: #343A40; line-height: 1.2; }
+        .stat-content span { color: #868E96; font-size: 14px; font-weight: 500; }
 
-        /* 列表 */
-        .list-header { font-size: 14px; font-weight: 600; color: #5F6C7B; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .task-scroll-container { max-height: 70vh; overflow-y: auto; }
+        /* 列表标题 */
+        .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; color: #495057; font-weight: 600; font-size: 15px; }
+        .count-badge { background: #E9ECEF; padding: 2px 8px; border-radius: 10px; font-size: 12px; color: #495057; }
+        .task-list-wrapper { max-height: 70vh; overflow-y: auto; padding-right: 4px; }
 
-        /* 任务卡片 */
-        .task-card { background: #fff; border: 1px solid #E2E6EA; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; align-items: center; transition: all 0.2s; cursor: pointer; }
-        .task-card:hover { border-color: #C0C6CC; box-shadow: 0 4px 10px rgba(0,0,0,0.05); transform: translateY(-1px); }
-        
-        .store-avatar { width: 42px; height: 42px; background: #F1F3F5; color: #495057; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-weight: 700; font-size: 16px; flex-shrink: 0; }
-        
-        .task-info { flex: 1; min-width: 0; } /* min-width 修复 flex 文本溢出 */
-        .store-name { font-size: 15px; font-weight: 600; color: #212529; margin-bottom: 4px; display: flex; align-items: center; }
-        .plan-info { font-size: 12px; color: #868E96; display: flex; align-items: center; }
-        .separator { margin: 0 6px; color: #DEE2E6; }
+        /* --- 核心：任务卡片布局 --- */
+        .task-card {
+            background: #fff;
+            border: 1px solid #E9ECEF;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            display: flex; /* 启用Flex布局 */
+            align-items: center; /* 垂直居中 */
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .task-card:hover { border-color: #CED4DA; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-1px); }
 
-        .channel-badge { font-size: 11px; background: #F8F9FA; border: 1px solid #DEE2E6; padding: 1px 6px; border-radius: 4px; color: #495057; margin-left: 8px; font-weight: normal; }
-        .badge-urgent { background: #FFF5F5; color: #E03131; font-size: 10px; padding: 1px 6px; border-radius: 4px; border: 1px solid #FFC9C9; margin-left: 6px; }
+        /* 左侧 */
+        .card-left { flex-shrink: 0; margin-right: 16px; }
+        .store-avatar { width: 48px; height: 48px; background: #F8F9FA; color: #495057; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; border: 1px solid #DEE2E6; }
 
-        .task-meta { text-align: right; padding-left: 15px; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
-        .time-row { font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-weight: 500; }
+        /* 中间 (自适应宽度) */
+        .card-center { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
         
-        .status-group { display: flex; gap: 6px; }
-        .status-pill { font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
-        
-        /* 状态颜色定义 */
-        .st-default { background: #F1F3F5; color: #868E96; }
-        .st-submitted { background: #E7F5FF; color: #1C7ED6; }
-        .st-draft { background: #FFF4E6; color: #FD7E14; }
-        
-        .ap-approved { background: #E6FCF5; color: #0CA678; border: 1px solid #C3FAE8; }
-        .ap-rejected { background: #FFF5F5; color: #FA5252; border: 1px solid #FFC9C9; }
-        .ap-pending { background: #FFF9DB; color: #F08C00; border: 1px solid #FFEC99; }
+        .row-title { display: flex; align-items: center; gap: 8px; }
+        .store-name { font-size: 16px; font-weight: 700; color: #212529; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .channel-badge { font-size: 11px; background: #F1F3F5; padding: 2px 6px; border-radius: 4px; color: #6C757D; border: 1px solid #DEE2E6; flex-shrink: 0; }
+        .badge-urgent { background: #FFF5F5; color: #FA5252; font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid #FFC9C9; font-weight: bold; }
 
-        .empty-state { text-align: center; padding: 40px; color: #ADB5BD; background: #F8F9FA; border-radius: 8px; border: 1px dashed #DEE2E6; }
-    </style>`;
+        .row-meta { display: flex; align-items: center; font-size: 13px; color: #868E96; }
+        .meta-item { display: flex; align-items: center; gap: 4px; }
+        .user-item { color: #495057; }
+        .meta-sep { margin: 0 8px; color: #DEE2E6; }
+
+        /* 右侧 (固定对齐) */
+        .card-right { flex-shrink: 0; text-align: right; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 6px; min-width: 140px; margin-left: 15px; }
+        
+        .row-time { font-size: 12px; display: flex; align-items: center; }
+        .row-status { display: flex; gap: 5px; }
+
+        /* 状态胶囊 */
+        .status-pill { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; letter-spacing: 0.3px; }
+        .st-gray   { background: #F8F9FA; color: #ADB5BD; border: 1px solid #F1F3F5; }
+        .st-blue   { background: #E7F5FF; color: #1971C2; }
+        .st-green  { background: #EBFBEE; color: #2F9E44; border: 1px solid #D3F9D8; }
+        .st-red    { background: #FFF5F5; color: #FA5252; border: 1px solid #FFC9C9; }
+        .st-orange { background: #FFF4E6; color: #FD7E14; }
+        .st-yellow { background: #FFF9DB; color: #FAB005; }
+
+        /* 空状态 */
+        .empty-state { text-align: center; padding: 60px 20px; background: #fff; border-radius: 8px; border: 1px dashed #DEE2E6; color: #ADB5BD; margin-top: 10px; }
+        .empty-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.5; }
+    </style>
+    `;
 }

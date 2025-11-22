@@ -54,11 +54,11 @@ def get_dashboard_data():
                 in_charge = item.user or "待分配"
                 
                 # 2. 状态字段 (字段名: status, approval_status)
-                sub_status = item.status or "未开始"
-                approval_stat = item.approval_status or "-"
+                sub_status = item.status or "未提交"
+                approval_stat = item.approval_status or "待发起审批"
 
                 # 3. 提交时间 (字段名: sub_time, 修正之前的中文key错误)
-                submit_time_str = ""
+                submit_time_str = " "
                 if item.sub_time:
                     submit_time_str = format_datetime(item.sub_time, "MM-dd HH:mm")
 
@@ -76,7 +76,6 @@ def get_dashboard_data():
                     "child_status": sub_status,       # 提交状态
                     "approval_status": approval_stat, # 审批状态
                     "submit_time": submit_time_str,   # 格式化后的时间
-                    
                     "is_urgent": is_urgent
                 })
 
