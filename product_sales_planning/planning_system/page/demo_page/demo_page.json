@@ -1,0 +1,19 @@
+{
+ "content": null,
+ "creation": "2025-11-22 10:02:09.018564",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2025-11-22 10:02:09.018564",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "demo-page",
+ "owner": "Administrator",
+ "page_name": "demo-page",
+ "roles": [],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 1,
+ "title": "title"
+}

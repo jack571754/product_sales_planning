@@ -1,0 +1,73 @@
+{
+ "actions": [],
+ "creation": "2025-11-21 15:04:50.769041",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "id",
+  "shop_name",
+  "channel",
+  "shop_type",
+  "user1"
+ ],
+ "fields": [
+  {
+   "fieldname": "id",
+   "fieldtype": "Data",
+   "label": "\u5e97\u94fa\u7f16\u7801"
+  },
+  {
+   "fieldname": "user1",
+   "fieldtype": "Link",
+   "label": "\u5e97\u94fa\u8d1f\u8d23\u4eba",
+   "options": "User"
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "\u5e73\u53f0",
+   "options": "\u5929\u732b\n\u6296\u97f3\n\u4eac\u4e1c\n\u62fc\u591a\u591a\n\u552f\u54c1\u4f1a\n\u5f97\u7269\n\u79c1\u57df\n\u7ebf\u4e0a\u5176\u4ed6\n\u5206\u9500"
+  },
+  {
+   "fieldname": "shop_name",
+   "fieldtype": "Data",
+   "label": "\u5e97\u94fa\u540d\u79f0"
+  },
+  {
+   "fieldname": "shop_type",
+   "fieldtype": "Select",
+   "label": "\u7c7b\u578b",
+   "options": "\u81ea\u8fd0\u8425\n\u8fbe\u64ad"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-22 11:37:55.880535",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Store List",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "shop_name"
+}

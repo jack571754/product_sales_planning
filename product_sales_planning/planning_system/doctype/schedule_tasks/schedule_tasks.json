@@ -1,0 +1,73 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{YYYY}-{MM}-{type}-{##}",
+ "creation": "2025-11-21 14:59:22.502963",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "type",
+  "start_date",
+  "end_date",
+  "status",
+  "set_store"
+ ],
+ "fields": [
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "\u5f00\u59cb\u65e5\u671f"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "\u7ed3\u675f\u65e5\u671f"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "\u4efb\u52a1\u72b6\u6001",
+   "options": "\u5f00\u542f\u4e2d\n\u5df2\u7ed3\u675f"
+  },
+  {
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "\u8ba1\u5212\u7c7b\u578b",
+   "options": "MON\nPRO"
+  },
+  {
+   "fieldname": "set_store",
+   "fieldtype": "Table",
+   "label": "\u9009\u62e9\u5e97\u94fa",
+   "options": "Tasks Store"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-22 11:36:50.867224",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Schedule tasks",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

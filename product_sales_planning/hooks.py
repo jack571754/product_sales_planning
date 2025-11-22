@@ -8,6 +8,10 @@ app_license = "mit"
 # Apps
 # ------------------
 
+
+api_methods = [
+    "product_sales_planning.planning_system.page.demo_page.get_dashboard_data"
+]
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page

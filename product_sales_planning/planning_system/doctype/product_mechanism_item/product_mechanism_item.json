@@ -1,0 +1,96 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-11-21 11:21:13.995634",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "name1",
+  "code",
+  "float",
+  "is_free_gift",
+  "specifications",
+  "brand",
+  "category",
+  "series",
+  "retail_price"
+ ],
+ "fields": [
+  {
+   "fieldname": "float",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "\u6570\u91cf",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_free_gift",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "\u662f\u5426\u8d60\u54c1"
+  },
+  {
+   "fetch_from": "name1.specifications",
+   "fieldname": "specifications",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "\u89c4\u683c"
+  },
+  {
+   "fetch_from": "name1.brand",
+   "fieldname": "brand",
+   "fieldtype": "Data",
+   "label": "\u54c1\u724c"
+  },
+  {
+   "fetch_from": "name1.category",
+   "fieldname": "category",
+   "fieldtype": "Data",
+   "label": "\u4ea7\u54c1\u5206\u7c7b"
+  },
+  {
+   "fetch_from": "name1.series",
+   "fieldname": "series",
+   "fieldtype": "Data",
+   "label": "\u4ea7\u54c1\u7cfb\u5217"
+  },
+  {
+   "fieldname": "name1",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "\u4ea7\u54c1\u540d\u79f0",
+   "options": "Product List"
+  },
+  {
+   "fetch_from": "name1.retail_price",
+   "fieldname": "retail_price",
+   "fieldtype": "Int",
+   "label": "\u96f6\u552e\u4ef7",
+   "non_negative": 1
+  },
+  {
+   "fetch_from": "name1.code",
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "\u4ea7\u54c1\u7f16\u7801"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-11-21 13:07:38.845463",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Product Mechanism Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

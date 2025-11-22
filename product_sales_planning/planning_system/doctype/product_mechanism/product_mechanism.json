@@ -1,0 +1,81 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "creation": "2025-11-21 10:52:39.250708",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "mechanism_name",
+  "category",
+  "product_list",
+  "is_active",
+  "content_summary"
+ ],
+ "fields": [
+  {
+   "fieldname": "mechanism_name",
+   "fieldtype": "Data",
+   "label": "\u673a\u5236\u540d\u79f0",
+   "unique": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "\u673a\u5236\u7ea7\u522b",
+   "options": "S\u4fc3\nD11/618\n\u8d85\u5934\n\u5934\u90e8"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "\u662f\u5426\u542f\u7528"
+  },
+  {
+   "allow_bulk_edit": 1,
+   "fieldname": "product_list",
+   "fieldtype": "Table",
+   "label": "\u4ea7\u54c1\u5217\u8868",
+   "options": "Product Mechanism Item"
+  },
+  {
+   "fieldname": "content_summary",
+   "fieldtype": "Small Text",
+   "label": "\u4ea7\u54c1\u6982\u89c8",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "hide_toolbar": 1,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-21 13:12:26.578825",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Product Mechanism",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "mechanism_name",
+ "track_changes": 1,
+ "track_seen": 1,
+ "track_views": 1
+}

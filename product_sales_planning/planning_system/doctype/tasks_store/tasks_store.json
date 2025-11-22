@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-11-22 11:34:24.934217",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "store_name",
+  "user",
+  "sub_time",
+  "status",
+  "approval_status",
+  "approval_time"
+ ],
+ "fields": [
+  {
+   "fieldname": "store_name",
+   "fieldtype": "Link",
+   "label": "\u5e97\u94fa\u540d\u79f0",
+   "options": "Store List"
+  },
+  {
+   "fetch_from": "store_name.user1",
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "\u8d1f\u8d23\u4eba",
+   "options": "Store List"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "\u63d0\u4ea4\u72b6\u6001"
+  },
+  {
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "\u5ba1\u6279\u72b6\u6001"
+  },
+  {
+   "fieldname": "approval_time",
+   "fieldtype": "Datetime",
+   "label": "\u5ba1\u6279\u65f6\u95f4"
+  },
+  {
+   "fieldname": "sub_time",
+   "fieldtype": "Datetime",
+   "label": "\u63d0\u4ea4\u65e5\u671f\u65f6\u95f4"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-11-22 12:10:43.240188",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Tasks Store",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
