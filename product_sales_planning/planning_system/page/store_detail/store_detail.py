@@ -15,7 +15,7 @@ def get_store_commodity_data(store_id):
     data = frappe.get_all(
         "Commodity Schedule",
         filters={
-            "store_name": store_id  # <--- 必须确认表里有这个字段
+            "store_id": store_id  # <--- 必须确认表里有这个字段
         },
         fields=[
             "name1",            # 产品名称
