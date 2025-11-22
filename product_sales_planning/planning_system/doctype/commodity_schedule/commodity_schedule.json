@@ -7,40 +7,35 @@
  "field_order": [
   "goods_plan",
   "store_id",
+  "store_name",
   "code",
   "nickname",
   "name1",
   "specifications",
-  "float",
+  "quantity",
   "brand",
   "category",
   "series"
  ],
  "fields": [
   {
-   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.nickname",
+   "fetch_from": "code.nickname",
    "fieldname": "nickname",
    "fieldtype": "Data",
    "label": "\u4ea7\u54c1\u6635\u79f0",
    "options": "Product List"
   },
   {
-   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.name1",
+   "fetch_from": "code.name1",
    "fieldname": "name1",
    "fieldtype": "Data",
    "label": "\u4ea7\u54c1\u540d\u79f0"
   },
   {
-   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.specifications",
+   "fetch_from": "code.specifications",
    "fieldname": "specifications",
    "fieldtype": "Data",
    "label": "\u89c4\u683c"
-  },
-  {
-   "bold": 1,
-   "fieldname": "float",
-   "fieldtype": "Int",
-   "label": "\u6570\u91cf"
   },
   {
    "fieldname": "goods_plan",
@@ -48,19 +43,19 @@
    "label": "\u8d27\u54c1\u8ba1\u5212"
   },
   {
-   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.brand",
+   "fetch_from": "code.brand",
    "fieldname": "brand",
    "fieldtype": "Data",
    "label": "\u54c1\u724c"
   },
   {
-   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.category",
+   "fetch_from": "code.category",
    "fieldname": "category",
    "fieldtype": "Data",
    "label": "\u4ea7\u54c1\u7c7b\u522b"
   },
   {
-   "fetch_from": "\u4ea7\u54c1\u7f16\u7801.series",
+   "fetch_from": "code.series",
    "fieldname": "series",
    "fieldtype": "Data",
    "label": "\u4ea7\u54c1\u7cfb\u5217"
@@ -77,12 +72,24 @@
    "fieldtype": "Link",
    "label": "\u4ea7\u54c1\u7f16\u7801",
    "options": "Product List"
+  },
+  {
+   "bold": 1,
+   "fieldname": "quantity",
+   "fieldtype": "Int",
+   "label": "\u6570\u91cf"
+  },
+  {
+   "fetch_from": "store_id.shop_name",
+   "fieldname": "store_name",
+   "fieldtype": "Data",
+   "label": "\u5e97\u94fa\u540d\u79f0"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-22 16:18:58.210645",
+ "modified": "2025-11-22 19:54:40.492802",
  "modified_by": "Administrator",
  "module": "planning system",
  "name": "Commodity Schedule",
@@ -103,7 +110,9 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "store_name"
 }
