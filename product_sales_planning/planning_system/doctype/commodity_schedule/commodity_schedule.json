@@ -7,7 +7,7 @@
  "field_order": [
   "goods_plan",
   "store_id",
-  "\u4ea7\u54c1\u7f16\u7801",
+  "code",
   "nickname",
   "name1",
   "specifications",
@@ -17,12 +17,6 @@
   "series"
  ],
  "fields": [
-  {
-   "fieldname": "\u4ea7\u54c1\u7f16\u7801",
-   "fieldtype": "Link",
-   "label": "\u4ea7\u54c1\u7f16\u7801",
-   "options": "Product List"
-  },
   {
    "fetch_from": "\u4ea7\u54c1\u7f16\u7801.nickname",
    "fieldname": "nickname",
@@ -77,12 +71,18 @@
    "label": "\u5e97\u94fa\u7f16\u7801",
    "options": "Store List",
    "remember_last_selected_value": 1
+  },
+  {
+   "fieldname": "code",
+   "fieldtype": "Link",
+   "label": "\u4ea7\u54c1\u7f16\u7801",
+   "options": "Product List"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-22 16:00:26.357861",
+ "modified": "2025-11-22 16:18:58.210645",
  "modified_by": "Administrator",
  "module": "planning system",
  "name": "Commodity Schedule",
