@@ -19,7 +19,7 @@ class ProductMechanism(Document):
                     product_name = frappe.db.get_value("Product List", row.name1, "name1") or row.name1
                 
                 # 获取数量字段
-                current_qty = row.float if row.float else 1
+                current_qty = row.quantity if row.quantity else 1
                 
                 # 拼接逻辑
                 if product_name:

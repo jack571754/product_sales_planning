@@ -14,7 +14,7 @@ frappe.ui.form.on('Product Mechanism', {
                     brand: null,
                     specifications: null
                 },
-                add_filters_group: 1,
+                // add_filters_group: 1,
 
                 // 列表显示的列 - 确保这些字段在 Product List 中存在
                 columns: ["name1", "specifications"], 
@@ -27,7 +27,7 @@ frappe.ui.form.on('Product Mechanism', {
                         
                         // 赋值逻辑 (保持你之前的字段名)
                         frappe.model.set_value(child.doctype, child.name, "name1", item_name);
-                        frappe.model.set_value(child.doctype, child.name, "float", 1);
+                        frappe.model.set_value(child.doctype, child.name, "quantity", 1);
                     });
 
                     frm.refresh_field("product_list");

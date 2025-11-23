@@ -1,200 +1,327 @@
-// --- 1. 页面首次加载：只搭建骨架 (执行1次) ---
+// --- 1. 页面入口 ---
 frappe.pages['store-detail'].on_page_load = function(wrapper) {
-    var page = frappe.ui.make_app_page({
+    const page = frappe.ui.make_app_page({
         parent: wrapper,
-        title: '店铺规划详情',
+        title: '店铺规划 (Vue版)',
         single_column: true
     });
 
-    page.set_secondary_action('刷新数据', function() {
-        data_refresh(wrapper);
-    }, 'refresh');
-
-    // 预留内容容器
+    // 预留挂载点
     $(wrapper).find('.layout-main-section').html(`
-        <div id="store-detail-content"></div>
-    `);
-};
-
-// --- 2. 页面每次显示：自动刷新数据 ---
-frappe.pages['store-detail'].on_page_show = function(wrapper) {
-    data_refresh(wrapper);
-};
-
-// --- 3. 核心数据加载函数 ---
-function data_refresh(wrapper) {
-    const $container = $(wrapper).find('#store-detail-content');
-    const route = frappe.get_route();
-    console.log(route);
-    const store_id = route[1];
-    const plan_id = route[2];
-    const deadline = route[3];
-
-    if (!store_id) {
-        $container.html('<div class="alert alert-warning">⚠️ URL 中缺少店铺 ID</div>');
-        wrapper.page.set_title('店铺详情 (无ID)');
-        return;
-    }
-
-    
-    
-    // 简单 Loading
-    $container.html(`
-        <div class="text-center" style="padding: 50px; color: #777;">
-            <div class="spinner-border spinner-border-sm" role="status"></div>
-            <span style="margin-left: 10px;">正在同步最新数据...</span>
+        <div id="store-detail-app">
+            <div class="text-center p-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="mt-2 text-muted">正在连接 Vue 引擎...</div>
+            </div>
         </div>
     `);
 
-    frappe.call({
-        method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
-        args: { store_id: store_id },
-        callback: function(r) {
-            if (r.message && !r.message.error) {
-                // wrapper.page.set_title(`${r.message[0].store_name} - 选品明细`);
-                // 核心：确保 datatable 库加载后再渲染
-                frappe.require("frappe-datatable.min.css", function() {
-                    render_datatable_view($container, r.message);
-                });
-            } else {
-                const err = r.message ? r.message.error : "无数据";
-                $container.html(`<div class="alert alert-danger">查询失败: ${err}</div>`);
-            }
-        }
-    });
+    // 注入 CSS
+    inject_css();
 
-    
-}
-
-// --- 4. 使用 DataTable 渲染 (替换了原来的 render_table) ---
-function render_datatable_view($container, list) {
-    // 空数据处理
-    if (!list || list.length === 0) {
-        $container.html(`
-            <div class="empty-state" style="text-align: center; padding: 50px; background: #fff; border: 1px dashed #ddd; border-radius: 8px;">
-                <div style="font-size: 24px; margin-bottom: 10px;">📭</div>
-                <div style="color: #777;">该店铺暂无规划数据</div>
-            </div>
-        `);
-        return;
-    }
-
-    // 统计总数
-    const total_qty = list.reduce((sum, item) => sum + (item.quantity || 0), 0);
-
-    // 1. 准备 DOM 结构：顶部统计 + 表格容器
-    const layout_html = `
-        <div style="padding: 15px;">
-            <div style="display:flex; gap:15px; margin-bottom:15px;">
-                 <div class="stats-box">
-                    <div class="text-muted small">规划 SKU</div>
-                    <div style="font-size:20px; font-weight:bold;">${list.length}</div>
-                 </div>
-                 <div class="stats-box">
-                    <div class="text-muted small">总件数</div>
-                    <div style="font-size:20px; font-weight:bold; color:#228BE6;">${total_qty}</div>
-                 </div>
-            </div>
-
-            <div class="datatable-wrapper" style="background:#fff; border:1px solid #ebf1f5; border-radius:8px; padding:0;">
-                <div id="commodity-datatable"></div>
-            </div>
-        </div>
-        <style>
-            .stats-box { background:#fff; border:1px solid #eee; padding:10px 20px; border-radius:6px; flex:1; }
-            /* 微调 datatable 样式使其更紧凑 */
-            .dt-cell__content { font-size: 13px; color: #333; }
-            .dt-header { background-color: #f8f9fa !important; color: #666; font-weight: 600; }
-        </style>
-    `;
-
-    $container.html(layout_html);
-    const datatable_el = $container.find('.dt-target')[0];
-    // 2. 配置 DataTable 列
-    const columns = [
-        {
-            name: '产品名称',
-            id: 'name1',
-            editable: false,
-            width: 200,
-            format: (value) => `<span style="font-weight:500; color:#333;">${value}</span>`
-        },
-        {
-            name: '规格',
-            id: 'specifications',
-            editable: false,
-            width: 140
-        },
-        {
-            name: '品牌',
-            id: 'brand',
-            editable: false,
-            width: 100
-        },
-        {
-            name: '类别',
-            id: 'category',
-            editable: false,
-            width: 100
-        },
-        {
-            name: '数量',
-            id: 'quantity',
-            editable: true,
-            width: 100,
-            align: 'right',
-            // 自定义格式：加粗蓝色
-            format: (value) => `<span style="color:#228BE6; font-weight:bold;">${value}</span>`
-        }
-    ];
-
-    // 3. 初始化 DataTable
-    new frappe.DataTable('#commodity-datatable', {
-        columns: columns,
-        data: list,
-        layout: 'fluid', // 宽度自适应
-        cellHeight: 40,  // 行高
-        serialNoColumn: true, // 显示序号列 (#)
-        noDataMessage: '暂无数据',
-    });
-
- // 4. 监听数据更新事件
-    datatable.on('cell-updated', (event) => {
-        console.log("🔥 触发编辑:", event); // 调试用
-        
-        const rowData = event.row;
-        const doc_name = rowData.name; 
-        const field_name = event.column.id;
-        const new_value = event.value;
-        
-        if (!doc_name) {
-            frappe.msgprint({message: "无法获取行ID，更新失败", indicator: "red"});
-            return;
-        }
-
-        // 调用后端接口保存
-        frappe.call({
-            method: "product_sales_planning.planning_system.page.store_detail.store_detail.update_line_item",
-            args: {
-                name: doc_name,
-                field: field_name,
-                value: new_value
-            },
-            callback: (r) => {
-                console.log("✅ 后端响应:", r);
-                if (!r.exc) {
-                    // 显示保存成功提示
-                    frappe.show_alert({message: "已保存", indicator: "green"}, 3);
-                } else {
-                    frappe.msgprint("保存失败，请刷新重试");
-                }
-            },
-            error: (r) => {
-                console.log("❌ 保存出错:", r);
-                frappe.msgprint("保存失败，请刷新重试");
-            }
+    // --- 关键修复 ---
+    // 1. 先判断全局是否有 Vue
+    if (window.Vue) {
+        init_vue_app(wrapper, page);
+    } else {
+        // 2. 如果没有，使用完整的 .js 路径加载
+        // 这里使用 unpkg CDN，这是最稳妥的方式
+        frappe.require("/assets/frappe/node_modules/vue/dist/vue.global.js", function() {
+            init_vue_app(wrapper, page);
         });
-    });
+    }
+};
+// "/assets/frappe/node_modules/vue/dist/vue.global.js",
 
+// --- 2. Vue 应用逻辑 ---
+function init_vue_app(wrapper, page) {
+    // 再次防御性检查
+    if (!window.Vue) {
+        $(wrapper).find('#store-detail-app').html(
+            `<div class="alert alert-danger">Vue 加载失败，请检查网络或资源路径。</div>`
+        );
+        return;
+    }
+
+    const { createApp, reactive, computed, onMounted, toRefs } = window.Vue;
+
+    const App = {
+        template: `
+            <div class="store-planning-container" style="padding: 15px;">
+                
+                <div class="toolbar-row mb-4 d-flex justify-content-between align-items-center">
+                    <div class="btn-group mode-switcher" role="group">
+                        <button type="button" 
+                            class="btn" 
+                            :class="entryMode === 'mechanism' ? 'btn-primary' : 'btn-default'"
+                            @click="openMechanismDialog()">
+                            ⚙️ 机制录入
+                        </button>
+                        <button type="button" 
+                            class="btn btn-default"
+                            @click="openProductListDialog()">
+                            ➕ 添加商品
+                        </button>
+                    </div>
+
+                    <div class="search-filter" style="width: 250px;">
+                        <input type="text" 
+                            class="form-control form-control-sm" 
+                            placeholder="🔍 搜索产品名称/编码..." 
+                            v-model="searchQuery">
+                    </div>
+                </div>
+
+                <div class="stats-row">
+                    <div class="stat-box">
+                        <div class="stat-label">规划 SKU</div>
+                        <div class="stat-value">{{ filteredItems.length }}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">总件数</div>
+                        <div class="stat-value text-blue">{{ totalQuantity }}</div>
+                    </div>
+                    <div class="stat-box" :class="{'saving': isSaving}">
+                        <div class="stat-label">同步状态</div>
+                        <div class="stat-value status-text">
+                            <span v-if="isSaving" class="text-warning">💾 保存中...</span>
+                            <span v-else class="text-success">✅ 已同步</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="errorMsg" class="alert alert-danger mt-3">{{ errorMsg }}</div>
+
+                <div class="custom-table-wrapper mt-3">
+                    
+                    <div v-if="loading" class="text-center p-5">
+                        <div class="spinner-border spinner-border-sm text-muted"></div> 数据加载中...
+                    </div>
+
+                    <div v-else-if="entryMode === 'mechanism'" class="p-5 text-center bg-light text-muted">
+                        <h4 class="mt-2">⚙️ 机制录入模式</h4>
+                        <p>在此处展示机制选择和批量录入界面 (开发中...)</p>
+                    </div>
+
+                    <table v-else class="table table-bordered table-hover mb-0">
+                        <thead>
+                            <tr class="bg-light">
+                                <th width="50" class="text-center">#</th>
+                                <th>产品名称</th>
+                                <th width="150">规格</th>
+                                <th width="120">品牌</th>
+                                <th width="120">类别</th>
+                                <th width="150" class="text-right">数量 (编辑)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="filteredItems.length === 0">
+                                <td colspan="6" class="text-center p-5 text-muted">
+                                    {{ items.length > 0 ? '未找到匹配的商品' : '暂无数据' }}
+                                </td>
+                            </tr>
+                            <tr v-else v-for="(item, index) in filteredItems" :key="item.name || index">
+                                <td class="text-center align-middle">{{ index + 1 }}</td>
+                                <td class="align-middle">
+                                    <div class="font-weight-bold text-dark">{{ item.name1 }}</div>
+                                    <small class="text-muted">{{ item.code }}</small>
+                                </td>
+                                <td class="align-middle">{{ item.specifications }}</td>
+                                <td class="align-middle">{{ item.brand }}</td>
+                                <td class="align-middle">{{ item.category }}</td>
+                                <td class="text-right align-middle">
+                                    <input 
+                                        type="number" 
+                                        class="form-control input-sm text-right font-weight-bold text-blue border-0"
+                                        style="background: transparent;"
+                                        v-model.number="item.quantity"
+                                        @focus="$event.target.select()"
+                                        @blur="saveItem(item)"
+                                        @keypress.enter="$event.target.blur()"
+                                    >
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `,
+        setup() {
+            const state = reactive({
+                items: [],
+                loading: false,
+                isSaving: false,
+                errorMsg: '',
+                // 新增状态
+                entryMode: 'item', // 'item' | 'mechanism'
+                searchQuery: ''
+            });
+
+            // 新增：筛选逻辑
+            const filteredItems = computed(() => {
+                if (!state.searchQuery) return state.items;
+                const query = state.searchQuery.toLowerCase();
+                return state.items.filter(item => 
+                    (item.name1 && item.name1.toLowerCase().includes(query)) || 
+                    (item.code && item.code.toLowerCase().includes(query))
+                );
+            });
+
+            // 修改：基于筛选后的列表计算总数，更符合直觉
+            const totalQuantity = computed(() => {
+                return filteredItems.value.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
+            });
+
+            // 打开机制录入对话框
+            const openMechanismDialog = () => {
+                const msd = new frappe.ui.form.MultiSelectDialog({
+                    doctype: "Product Mechanism",
+                    target: this,
+                    setters: {
+                        mechanism_name: null,
+                        category: null
+                    },
+                    primary_action_label: "选择机制",
+                    action(selections) {
+                        console.log("Selected mechanisms:", selections);
+                        // 在这里处理选中的机制
+                        frappe.show_alert({
+                            message: __("已选择 {0} 个机制", [selections.length]),
+                            indicator: 'green'
+                        });
+                        cur_dialog.hide();
+                    }
+                });
+                
+                // 设置弹窗标题
+                msd.dialog.set_title("请选择产品机制");
+                // // 添加"新建机制"按钮
+                // msd.dialog.add_custom_action('新建机制', () => {
+                //     // 关闭当前对话框
+                //     msd.dialog.hide();
+                //     // 打开新建机制页面
+                //     frappe.new_doc("Product Mechanism");
+                // }, "btn-secondary");
+                
+                // msd.dialog.footer.find("button:contains('创建Product Mechanism')").hide();
+            };
+
+
+            // 打开商品列表对话框
+            const openProductListDialog = () => {
+                const msd1 = new frappe.ui.form.MultiSelectDialog({
+                    doctype: "Product List",
+                    target: this,
+                    setters: {
+                        name1: null,
+                        brand: null,
+                        specifications: null
+                    },
+                    add_filters_group: 1,
+                    primary_action_label: "添加商品",
+                    action(selections) {
+                        console.log("Selected products:", selections);
+                        // 在这里处理选中的商品
+                        frappe.show_alert({
+                            message: __("已选择 {0} 个商品", [selections.length]),
+                            indicator: 'green'
+                        });
+                        cur_dialog.hide();
+                    
+                    }
+                });
+
+                // 设置弹窗标题
+                msd1.dialog.set_title("请选择产品列表");
+            };
+
+            const fetchData = () => {
+                const route = frappe.get_route();
+                const storeId = route[1];
+                
+                if (!storeId) {
+                    state.errorMsg = "未找到店铺 ID，请从列表页进入";
+                    return;
+                }
+
+                state.loading = true;
+                page.set_title(`${storeId} - 规划详情`);
+
+                frappe.call({
+                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
+                    args: { store_id: storeId },
+                    callback: (r) => {
+                        state.loading = false;
+                        if (r.message && !r.message.error) {
+                            state.items = r.message;
+                        } else {
+                            state.items = [];
+                            if (r.message && r.message.error) state.errorMsg = r.message.error;
+                        }
+                    },
+                    error: (r) => {
+                        state.loading = false;
+                        state.errorMsg = "网络请求失败";
+                    }
+                });
+            };
+
+            const saveItem = (item) => {
+                if (!item.name) return;
+                state.isSaving = true;
+                
+                frappe.call({
+                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.update_line_item",
+                    args: {
+                        name: item.name,
+                        field: 'quantity',
+                        value: item.quantity
+                    },
+                    callback: (r) => {
+                        state.isSaving = false;
+                        if (r.exc) {
+                            frappe.show_alert({message: '保存失败', indicator: 'red'});
+                        }
+                    }
+                });
+            };
+
+            onMounted(() => {
+                console.log("Vue 3 App Mounted Successfully 🚀");
+                fetchData();
+            });
+
+            page.set_secondary_action('刷新', fetchData);
+
+            return {
+                ...toRefs(state),
+                totalQuantity,
+                filteredItems, // 导出筛选后的列表
+                openMechanismDialog, // 导出打开机制对话框方法
+                openProductListDialog, // 导出打开商品列表对话框方法
+                saveItem
+            };
+        }
+    };
+
+    const app = createApp(App);
+    app.mount('#store-detail-app');
 }
 
+function inject_css() {
+    const css = `
+        .stats-row { display: flex; gap: 20px; margin-bottom: 20px; }
+        .stat-box { background: #fff; border: 1px solid #ebf1f5; border-radius: 8px; padding: 15px 20px; flex: 1; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .stat-label { color: #6c757d; font-size: 12px; font-weight: 500; text-transform: uppercase; }
+        .stat-value { font-size: 24px; font-weight: 700; color: #1f272e; margin-top: 5px; }
+        .text-blue { color: #228be6 !important; }
+        .custom-table-wrapper { background: #fff; border-radius: 8px; border: 1px solid #ebf1f5; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        input[type=number]:focus { background-color: #e7f5ff !important; outline: none; box-shadow: inset 0 0 0 1px #228be6; }
+        
+        /* 新增按钮组样式 */
+        .mode-switcher .btn { border: 1px solid #d1d8dd; background-color: #fff; color: #555; }
+        .mode-switcher .btn-primary { background-color: #228be6; border-color: #228be6; color: #fff; }
+        .mode-switcher .btn:hover { z-index: 2; }
+    `;
+    $('<style>').text(css).appendTo('head');
+}
