@@ -11,7 +11,8 @@ app_license = "mit"
 
 api_methods = [
     "product_sales_planning.planning_system.page.demo_page.get_dashboard_data",
-    "product_sales_planning.planning_system.page.store_detail.get_store_commodity_data"
+    "product_sales_planning.planning_system.page.store_detail.get_store_commodity_data",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.update_line_item"
 ]
 # required_apps = []
 

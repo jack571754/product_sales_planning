@@ -20,6 +20,7 @@ function load_data(wrapper) {
         callback: function(r) {
             if (r.message) {
                 render_demo_page(wrapper, r.message);
+                console.log(r.message);
             }
         }
     });
@@ -83,7 +84,7 @@ function render_demo_page(wrapper, data) {
             `;
 
 			list_html += `
-				<div class="task-card" onclick="frappe.set_route('store-detail', '${task.store_id}')">
+				<div class="task-card" onclick="frappe.set_route('store-detail', '${task.store_id}','${task.parent_id}', '${task.deadline}')">
 					
 					<div class="card-left">
 						<div class="store-avatar">${avatar}</div>

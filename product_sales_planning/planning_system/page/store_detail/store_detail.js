@@ -27,6 +27,8 @@ function data_refresh(wrapper) {
     const route = frappe.get_route();
     console.log(route);
     const store_id = route[1];
+    const plan_id = route[2];
+    const deadline = route[3];
 
     if (!store_id) {
         $container.html('<div class="alert alert-warning">⚠️ URL 中缺少店铺 ID</div>');
@@ -107,7 +109,7 @@ function render_datatable_view($container, list) {
     `;
 
     $container.html(layout_html);
-
+    const datatable_el = $container.find('.dt-target')[0];
     // 2. 配置 DataTable 列
     const columns = [
         {
@@ -138,7 +140,7 @@ function render_datatable_view($container, list) {
         {
             name: '数量',
             id: 'quantity',
-            editable: false,
+            editable: true,
             width: 100,
             align: 'right',
             // 自定义格式：加粗蓝色
@@ -153,6 +155,46 @@ function render_datatable_view($container, list) {
         layout: 'fluid', // 宽度自适应
         cellHeight: 40,  // 行高
         serialNoColumn: true, // 显示序号列 (#)
-        noDataMessage: '暂无数据'
+        noDataMessage: '暂无数据',
     });
+
+ // 4. 监听数据更新事件
+    datatable.on('cell-updated', (event) => {
+        console.log("🔥 触发编辑:", event); // 调试用
+        
+        const rowData = event.row;
+        const doc_name = rowData.name; 
+        const field_name = event.column.id;
+        const new_value = event.value;
+        
+        if (!doc_name) {
+            frappe.msgprint({message: "无法获取行ID，更新失败", indicator: "red"});
+            return;
+        }
+
+        // 调用后端接口保存
+        frappe.call({
+            method: "product_sales_planning.planning_system.page.store_detail.store_detail.update_line_item",
+            args: {
+                name: doc_name,
+                field: field_name,
+                value: new_value
+            },
+            callback: (r) => {
+                console.log("✅ 后端响应:", r);
+                if (!r.exc) {
+                    // 显示保存成功提示
+                    frappe.show_alert({message: "已保存", indicator: "green"}, 3);
+                } else {
+                    frappe.msgprint("保存失败，请刷新重试");
+                }
+            },
+            error: (r) => {
+                console.log("❌ 保存出错:", r);
+                frappe.msgprint("保存失败，请刷新重试");
+            }
+        });
+    });
+
 }
+
