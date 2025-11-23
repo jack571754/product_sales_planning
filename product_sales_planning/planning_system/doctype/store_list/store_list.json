@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "autoname": "format:{store_name}-{##}",
  "creation": "2025-11-21 15:04:50.769041",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -44,10 +45,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-22 11:37:55.880535",
+ "modified": "2025-11-23 16:31:48.096697",
  "modified_by": "Administrator",
  "module": "planning system",
  "name": "Store List",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

@@ -15,7 +15,8 @@
   "quantity",
   "brand",
   "category",
-  "series"
+  "series",
+  "task_id"
  ],
  "fields": [
   {
@@ -84,12 +85,17 @@
    "fieldname": "store_name",
    "fieldtype": "Data",
    "label": "\u5e97\u94fa\u540d\u79f0"
+  },
+  {
+   "fieldname": "task_id",
+   "fieldtype": "Data",
+   "label": "\u8ba1\u5212\u4efb\u52a1"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-22 19:54:40.492802",
+ "modified": "2025-11-23 12:41:01.035906",
  "modified_by": "Administrator",
  "module": "planning system",
  "name": "Commodity Schedule",

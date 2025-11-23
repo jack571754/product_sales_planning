@@ -1,6 +1,6 @@
 {
  "actions": [],
- "allow_rename": 1,
+ "autoname": "field:code",
  "creation": "2025-11-21 10:58:59.052273",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -19,7 +19,8 @@
    "fieldname": "code",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "\u4ea7\u54c1\u7f16\u7801"
+   "label": "\u4ea7\u54c1\u7f16\u7801",
+   "unique": 1
   },
   {
    "fieldname": "specifications",
@@ -69,10 +70,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-21 14:47:02.817294",
+ "modified": "2025-11-23 16:34:30.758777",
  "modified_by": "Administrator",
  "module": "planning system",
  "name": "Product List",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

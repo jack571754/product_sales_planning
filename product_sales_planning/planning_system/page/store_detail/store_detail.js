@@ -1,3 +1,5 @@
+// product_sales_planning/planning_system/page/store_detail/store_detail.js
+
 // --- 1. 页面入口 ---
 frappe.pages['store-detail'].on_page_load = function(wrapper) {
     const page = frappe.ui.make_app_page({
@@ -19,19 +21,25 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
     // 注入 CSS
     inject_css();
 
-    // --- 关键修复 ---
     // 1. 先判断全局是否有 Vue
     if (window.Vue) {
         init_vue_app(wrapper, page);
     } else {
         // 2. 如果没有，使用完整的 .js 路径加载
-        // 这里使用 unpkg CDN，这是最稳妥的方式
         frappe.require("/assets/frappe/node_modules/vue/dist/vue.global.js", function() {
             init_vue_app(wrapper, page);
         });
     }
 };
-// "/assets/frappe/node_modules/vue/dist/vue.global.js",
+
+// --- 关键修改：页面显示逻辑 ---
+frappe.pages['store-detail'].on_page_show = function(wrapper) {
+    // 每次页面切换回来时，检查 Vue 实例是否存在并调用刷新方法
+    if (wrapper.vue_app && wrapper.vue_app.fetchData) {
+        console.log("店铺详情页显示，正在刷新数据...");
+        wrapper.vue_app.fetchData();
+    }
+};
 
 // --- 2. Vue 应用逻辑 ---
 function init_vue_app(wrapper, page) {
@@ -152,12 +160,10 @@ function init_vue_app(wrapper, page) {
                 loading: false,
                 isSaving: false,
                 errorMsg: '',
-                // 新增状态
-                entryMode: 'item', // 'item' | 'mechanism'
+                entryMode: 'item',
                 searchQuery: ''
             });
 
-            // 新增：筛选逻辑
             const filteredItems = computed(() => {
                 if (!state.searchQuery) return state.items;
                 const query = state.searchQuery.toLowerCase();
@@ -167,12 +173,10 @@ function init_vue_app(wrapper, page) {
                 );
             });
 
-            // 修改：基于筛选后的列表计算总数，更符合直觉
             const totalQuantity = computed(() => {
                 return filteredItems.value.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
             });
 
-            // 打开机制录入对话框
             const openMechanismDialog = () => {
                 const msd = new frappe.ui.form.MultiSelectDialog({
                     doctype: "Product Mechanism",
@@ -184,7 +188,6 @@ function init_vue_app(wrapper, page) {
                     primary_action_label: "选择机制",
                     action(selections) {
                         console.log("Selected mechanisms:", selections);
-                        // 在这里处理选中的机制
                         frappe.show_alert({
                             message: __("已选择 {0} 个机制", [selections.length]),
                             indicator: 'green'
@@ -192,22 +195,9 @@ function init_vue_app(wrapper, page) {
                         cur_dialog.hide();
                     }
                 });
-                
-                // 设置弹窗标题
                 msd.dialog.set_title("请选择产品机制");
-                // // 添加"新建机制"按钮
-                // msd.dialog.add_custom_action('新建机制', () => {
-                //     // 关闭当前对话框
-                //     msd.dialog.hide();
-                //     // 打开新建机制页面
-                //     frappe.new_doc("Product Mechanism");
-                // }, "btn-secondary");
-                
-                // msd.dialog.footer.find("button:contains('创建Product Mechanism')").hide();
             };
 
-
-            // 打开商品列表对话框
             const openProductListDialog = () => {
                 const msd1 = new frappe.ui.form.MultiSelectDialog({
                     doctype: "Product List",
@@ -217,27 +207,23 @@ function init_vue_app(wrapper, page) {
                         brand: null,
                         specifications: null
                     },
-                    add_filters_group: 1,
                     primary_action_label: "添加商品",
                     action(selections) {
                         console.log("Selected products:", selections);
-                        // 在这里处理选中的商品
                         frappe.show_alert({
                             message: __("已选择 {0} 个商品", [selections.length]),
                             indicator: 'green'
                         });
                         cur_dialog.hide();
-                    
                     }
                 });
-
-                // 设置弹窗标题
                 msd1.dialog.set_title("请选择产品列表");
             };
 
             const fetchData = () => {
                 const route = frappe.get_route();
                 const storeId = route[1];
+                const parent_id = route[2]; // 虽然这里没用到，但保持获取
                 
                 if (!storeId) {
                     state.errorMsg = "未找到店铺 ID，请从列表页进入";
@@ -287,25 +273,27 @@ function init_vue_app(wrapper, page) {
             };
 
             onMounted(() => {
-                console.log("Vue 3 App Mounted Successfully 🚀");
                 fetchData();
             });
 
             page.set_secondary_action('刷新', fetchData);
 
+            // --- 关键修改：必须返回 fetchData 供外部调用 ---
             return {
                 ...toRefs(state),
                 totalQuantity,
-                filteredItems, // 导出筛选后的列表
-                openMechanismDialog, // 导出打开机制对话框方法
-                openProductListDialog, // 导出打开商品列表对话框方法
-                saveItem
+                filteredItems,
+                openMechanismDialog,
+                openProductListDialog,
+                saveItem,
+                fetchData // <--- 必须在这里导出
             };
         }
     };
 
     const app = createApp(App);
-    app.mount('#store-detail-app');
+    // --- 关键修改：保存 Vue 实例到 wrapper ---
+    wrapper.vue_app = app.mount('#store-detail-app');
 }
 
 function inject_css() {
