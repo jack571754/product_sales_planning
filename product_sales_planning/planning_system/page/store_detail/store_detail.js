@@ -283,12 +283,14 @@ function init_vue_app(wrapper, page) {
             };
 
             // --- 4. 添加商品 (已修复) ---
+           // --- 4. 添加商品 (修复版) ---
             const openProductListDialog = () => {
                 // 强制切回列表模式
                 state.entryMode = 'item'; 
 
                 const route = frappe.get_route();
                 const storeId = route[1];
+                const parentId = route[2]; // <--- 获取 task_id (父级任务ID)
 
                 if (!storeId) {
                     frappe.msgprint("无法获取店铺ID");
@@ -297,7 +299,7 @@ function init_vue_app(wrapper, page) {
 
                 new frappe.ui.form.MultiSelectDialog({
                     doctype: "Product List",
-                    target: this,
+                    target: null, // <--- 修复：Vue setup 中 this 为 undefined，改为 null
                     setters: {
                         name1: null,
                         brand: null,
@@ -310,19 +312,18 @@ function init_vue_app(wrapper, page) {
                             return;
                         }
 
-                        // 1. 冻结界面
                         frappe.dom.freeze("正在添加商品...");
 
                         frappe.call({
                             method: "product_sales_planning.planning_system.page.store_detail.store_detail.bulk_insert_commodity_schedule",
                             args: {
                                 store_id: storeId,
+                                task_id: parentId, // <--- 修复：传入 task_id
                                 codes: selections
                             },
                             callback: function(r) {
-                                // 2. 解冻
                                 frappe.dom.unfreeze();
-                                cur_dialog.hide();
+                                if (cur_dialog) cur_dialog.hide(); // 安全关闭弹窗
 
                                 if (r.message && r.message.status === "success") {
                                     frappe.show_alert({
@@ -330,19 +331,18 @@ function init_vue_app(wrapper, page) {
                                         indicator: 'green'
                                     });
 
-                                    // 3. 部分失败提示
                                     if (r.message.errors && r.message.errors.length > 0) {
                                         frappe.msgprint({
-                                            title: "部分数据添加失败",
+                                            title: "部分失败",
                                             message: r.message.errors.join("<br>"),
                                             indicator: "orange"
                                         });
                                     }
 
-                                    // 4. === 关键：重置并刷新 ===
-                                    state.searchQuery = ''; // 清空搜索
-                                    state.currentPage = 1;  // 回到第一页
-                                    fetchData();            // 重新请求数据
+                                    // 刷新数据
+                                    state.searchQuery = ''; 
+                                    state.currentPage = 1;  
+                                    fetchData();            
                                 } else {
                                     frappe.msgprint({
                                         title: "添加失败",
@@ -356,7 +356,7 @@ function init_vue_app(wrapper, page) {
                                 console.error("API Error", r);
                                 frappe.msgprint({
                                     title: "系统错误",
-                                    message: "请求失败，请查看控制台或联系管理员",
+                                    message: "请求失败，请查看控制台日志",
                                     indicator: "red"
                                 });
                             }

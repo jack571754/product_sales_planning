@@ -45,11 +45,13 @@ def get_store_commodity_data(store_id, start=0, page_length=20, search_term=None
         return {"error": str(e), "data": [], "total_count": 0}
 
 
-# --- 2. 批量插入接口 (保留了修复版，删除了重复的旧版) ---
+# 修改前：def bulk_insert_commodity_schedule(store_id, codes):
+# 修改后：增加 task_id 参数
+
 @frappe.whitelist()
-def bulk_insert_commodity_schedule(store_id, codes):
+def bulk_insert_commodity_schedule(store_id, codes, task_id=None):
     """
-    批量插入接口（包含事务提交，修复入库失败问题）
+    批量插入接口（修复：增加 task_id 以支持自动命名规则）
     """
     try:
         # 1. 处理前端传来的数组
@@ -59,31 +61,38 @@ def bulk_insert_commodity_schedule(store_id, codes):
         if not codes or not isinstance(codes, list):
             return {"status": "error", "msg": "未选择任何商品"}
 
+        # 确保 task_id 存在（如果是 None，可能需要处理，取决于业务逻辑，建议设为默认值或报错）
+        # 这里假设没有 task_id 也能存，但在命名规则里会变成 'None'
+        
         inserted_count = 0
         errors = []
 
         for code in codes:
             try:
-                # 检查是否存在
-                exists = frappe.db.exists("Commodity Schedule", {
+                # 检查是否存在 (同一任务、同一店铺、同一商品)
+                filters = {
                     "store_id": store_id, 
                     "code": code
-                })
+                }
+                # 如果业务要求同一任务下不能重复，应加上 task_id 过滤
+                if task_id:
+                    filters["task_id"] = task_id
+
+                exists = frappe.db.exists("Commodity Schedule", filters)
                 
                 if not exists:
                     doc = frappe.new_doc("Commodity Schedule")
                     doc.store_id = store_id
                     doc.code = code
-                    doc.quantity = 0 # 默认数量
+                    doc.task_id = task_id  # <--- 关键修复：赋值 task_id
+                    doc.quantity = 0 
                     doc.sub_date = frappe.utils.today()
                     
-                    # 插入数据 (此时还在内存/临时事务中)
                     doc.insert(ignore_permissions=True)
                     inserted_count += 1
             except Exception as e:
                 errors.append(f"Code {code}: {str(e)}")
 
-        # 2. !!! 关键：显式提交事务 !!!
         frappe.db.commit()
 
         if errors:
@@ -96,10 +105,9 @@ def bulk_insert_commodity_schedule(store_id, codes):
         }
 
     except Exception as e:
-        frappe.db.rollback() # 出错回滚
+        frappe.db.rollback()
         frappe.log_error(title="批量添加商品致命错误", message=str(e))
         return {"status": "error", "msg": str(e)}
-
 
 # --- 3. 单个插入接口 ---
 @frappe.whitelist()
