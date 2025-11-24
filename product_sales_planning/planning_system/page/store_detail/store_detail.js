@@ -20,21 +20,37 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
 
     // 注入 CSS
     inject_css();
+    
+    // 注入 CSS (包含 Vxe-table 的样式)
+    inject_css();
+
+    // 定义资源路径 (假设你通过 npm 安装到了 node_modules，或者你可以下载文件放到 public/js 下)
+    // 如果没有 node_modules，可以使用 CDN 链接测试，或者将文件上传到 assets 目录
+    const assets = [
+        "/assets/frappe/node_modules/vue/dist/vue.global.js",
+        "/assets/frappe/node_modules/xe-utils/dist/xe-utils.umd.min.js",
+        "/assets/frappe/node_modules/vxe-table/lib/index.umd.js",
+        "/assets/frappe/node_modules/vue/dist/vue.global.js"
+    ];
 
     // 1. 先判断全局是否有 Vue
-    if (window.Vue) {
+    // if (window.Vue) {
+    //     init_vue_app(wrapper, page);
+    // } else {
+    //     // 2. 如果没有，使用完整的 .js 路径加载
+    //     frappe.require("/assets/frappe/node_modules/vue/dist/vue.global.js", function() {
+    //         init_vue_app(wrapper, page);
+    //     });
+    // }
+
+    // 链式加载：Vue -> XeUtils -> VxeTable
+    frappe.require(assets, function() {
         init_vue_app(wrapper, page);
-    } else {
-        // 2. 如果没有，使用完整的 .js 路径加载
-        frappe.require("/assets/frappe/node_modules/vue/dist/vue.global.js", function() {
-            init_vue_app(wrapper, page);
-        });
-    }
+    });
 };
 
-// --- 关键修改：页面显示逻辑 ---
+// --- 页面显示逻辑：确保切回来时刷新 ---
 frappe.pages['store-detail'].on_page_show = function(wrapper) {
-    // 每次页面切换回来时，检查 Vue 实例是否存在并调用刷新方法
     if (wrapper.vue_app && wrapper.vue_app.fetchData) {
         console.log("店铺详情页显示，正在刷新数据...");
         wrapper.vue_app.fetchData();
@@ -43,7 +59,7 @@ frappe.pages['store-detail'].on_page_show = function(wrapper) {
 
 // --- 2. Vue 应用逻辑 ---
 function init_vue_app(wrapper, page) {
-    // 再次防御性检查
+    // 防御性检查
     if (!window.Vue) {
         $(wrapper).find('#store-detail-app').html(
             `<div class="alert alert-danger">Vue 加载失败，请检查网络或资源路径。</div>`
@@ -51,13 +67,14 @@ function init_vue_app(wrapper, page) {
         return;
     }
 
-    const { createApp, reactive, computed, onMounted, toRefs } = window.Vue;
+    const { createApp, reactive, computed, onMounted, toRefs, watch } = window.Vue;
 
     const App = {
         template: `
             <div class="store-planning-container" style="padding: 15px;">
                 
                 <div class="toolbar-row mb-4 d-flex justify-content-between align-items-center">
+                    
                     <div class="btn-group mode-switcher" role="group">
                         <button type="button" 
                             class="btn" 
@@ -75,19 +92,25 @@ function init_vue_app(wrapper, page) {
                     <div class="search-filter" style="width: 250px;">
                         <input type="text" 
                             class="form-control form-control-sm" 
-                            placeholder="🔍 搜索产品名称/编码..." 
-                            v-model="searchQuery">
+                            placeholder="🔍 搜索编码 (Enter查询)..." 
+                            v-model="searchQuery"
+                            @keyup.enter="handleSearch"
+                        >
                     </div>
                 </div>
 
                 <div class="stats-row">
                     <div class="stat-box">
-                        <div class="stat-label">规划 SKU</div>
-                        <div class="stat-value">{{ filteredItems.length }}</div>
+                        <div class="stat-label">本页 SKU</div>
+                        <div class="stat-value">{{ items.length }}</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">总件数</div>
+                        <div class="stat-label">本页总件数</div>
                         <div class="stat-value text-blue">{{ totalQuantity }}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">总记录数</div>
+                        <div class="stat-value">{{ total }}</div>
                     </div>
                     <div class="stat-box" :class="{'saving': isSaving}">
                         <div class="stat-label">同步状态</div>
@@ -108,7 +131,7 @@ function init_vue_app(wrapper, page) {
 
                     <div v-else-if="entryMode === 'mechanism'" class="p-5 text-center bg-light text-muted">
                         <h4 class="mt-2">⚙️ 机制录入模式</h4>
-                        <p>在此处展示机制选择和批量录入界面 (开发中...)</p>
+                        <p>请点击上方"添加商品"切换回列表模式，或在此处开发机制录入界面。</p>
                     </div>
 
                     <table v-else class="table table-bordered table-hover mb-0">
@@ -119,27 +142,24 @@ function init_vue_app(wrapper, page) {
                                 <th width="150">规格</th>
                                 <th width="120">品牌</th>
                                 <th width="120">类别</th>
-                                <th width="150" class="text-right">数量 (编辑)</th>
+                                <th width="150" class="text-right">数量</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-if="filteredItems.length === 0">
-                                <td colspan="6" class="text-center p-5 text-muted">
-                                    {{ items.length > 0 ? '未找到匹配的商品' : '暂无数据' }}
-                                </td>
+                            <tr v-if="items.length === 0">
+                                <td colspan="6" class="text-center p-5 text-muted">暂无数据</td>
                             </tr>
-                            <tr v-else v-for="(item, index) in filteredItems" :key="item.name || index">
-                                <td class="text-center align-middle">{{ index + 1 }}</td>
+                            <tr v-else v-for="(item, index) in items" :key="item.name">
+                                <td class="text-center align-middle">{{ (currentPage - 1) * pageSize + index + 1 }}</td>
                                 <td class="align-middle">
-                                    <div class="font-weight-bold text-dark">{{ item.name1 }}</div>
+                                    <div class="font-weight-bold text-dark">{{ item.name1 || '-' }}</div>
                                     <small class="text-muted">{{ item.code }}</small>
                                 </td>
                                 <td class="align-middle">{{ item.specifications }}</td>
                                 <td class="align-middle">{{ item.brand }}</td>
                                 <td class="align-middle">{{ item.category }}</td>
                                 <td class="text-right align-middle">
-                                    <input 
-                                        type="number" 
+                                    <input type="number" 
                                         class="form-control input-sm text-right font-weight-bold text-blue border-0"
                                         style="background: transparent;"
                                         v-model.number="item.quantity"
@@ -152,6 +172,26 @@ function init_vue_app(wrapper, page) {
                         </tbody>
                     </table>
                 </div>
+
+                <div class="pagination-wrapper d-flex justify-content-between align-items-center mt-3" v-if="total > 0 && entryMode === 'item'">
+                    <div class="text-muted small">
+                        显示 {{ (currentPage - 1) * pageSize + 1 }} 到 {{ Math.min(currentPage * pageSize, total) }} 条，共 {{ total }} 条
+                    </div>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                                <button class="page-link" @click="changePage(currentPage - 1)">上一页</button>
+                            </li>
+                            <li class="page-item active">
+                                <span class="page-link">{{ currentPage }} / {{ totalPages }}</span>
+                            </li>
+                            <li class="page-item" :class="{ disabled: currentPage >= totalPages }">
+                                <button class="page-link" @click="changePage(currentPage + 1)">下一页</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+
             </div>
         `,
         setup() {
@@ -160,114 +200,182 @@ function init_vue_app(wrapper, page) {
                 loading: false,
                 isSaving: false,
                 errorMsg: '',
-                entryMode: 'item',
-                searchQuery: ''
+                entryMode: 'item', // 'item' or 'mechanism'
+                // --- 分页状态 ---
+                searchQuery: '',
+                currentPage: 1,
+                pageSize: 20, 
+                total: 0
             });
 
-            const filteredItems = computed(() => {
-                if (!state.searchQuery) return state.items;
-                const query = state.searchQuery.toLowerCase();
-                return state.items.filter(item => 
-                    (item.name1 && item.name1.toLowerCase().includes(query)) || 
-                    (item.code && item.code.toLowerCase().includes(query))
-                );
-            });
-
+            // 计算属性
+            const totalPages = computed(() => Math.ceil(state.total / state.pageSize) || 1);
+            
             const totalQuantity = computed(() => {
-                return filteredItems.value.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
+                return state.items.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
             });
 
-            const openMechanismDialog = () => {
-                const msd = new frappe.ui.form.MultiSelectDialog({
-                    doctype: "Product Mechanism",
-                    target: this,
-                    setters: {
-                        mechanism_name: null,
-                        category: null
+            // --- 1. 获取数据 ---
+            const fetchData = () => {
+                const route = frappe.get_route();
+                const storeId = route[1];
+                
+                if (!storeId) return;
+                
+                // 如果在机制模式下，不加载列表数据（视需求而定）
+                if (state.entryMode === 'mechanism') return;
+
+                state.loading = true;
+                const start = (state.currentPage - 1) * state.pageSize;
+
+                frappe.call({
+                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
+                    args: { 
+                        store_id: storeId,
+                        start: start,
+                        page_length: state.pageSize,
+                        search_term: state.searchQuery 
                     },
-                    primary_action_label: "选择机制",
-                    action(selections) {
-                        console.log("Selected mechanisms:", selections);
-                        frappe.show_alert({
-                            message: __("已选择 {0} 个机制", [selections.length]),
-                            indicator: 'green'
-                        });
-                        cur_dialog.hide();
+                    callback: (r) => {
+                        state.loading = false;
+                        if (r.message && !r.message.error) {
+                            state.items = r.message.data || [];
+                            state.total = r.message.total_count || 0;
+                        } else {
+                            state.items = [];
+                            state.total = 0;
+                            if (r.message && r.message.error) state.errorMsg = r.message.error;
+                        }
+                    },
+                    error: () => {
+                        state.loading = false;
+                        state.errorMsg = "网络请求失败，请检查控制台";
                     }
                 });
-                msd.dialog.set_title("请选择产品机制");
             };
 
+            // --- 2. 交互操作 ---
+            const changePage = (page) => {
+                if (page < 1 || page > totalPages.value) return;
+                state.currentPage = page;
+                fetchData();
+            };
+
+            const handleSearch = () => {
+                state.currentPage = 1;
+                fetchData();
+            };
+
+            // 监听搜索清空
+            watch(() => state.searchQuery, (newVal) => {
+                if (newVal === '') handleSearch();
+            });
+
+            // --- 3. 切换到机制录入模式 ---
+            const openMechanismDialog = () => {
+                // 切换模式
+                state.entryMode = state.entryMode === 'mechanism' ? 'item' : 'mechanism';
+                
+                // 如果切回列表，重新加载数据
+                if (state.entryMode === 'item') {
+                    fetchData();
+                }
+            };
+
+            // --- 4. 添加商品 (已修复) ---
             const openProductListDialog = () => {
-                const msd1 = new frappe.ui.form.MultiSelectDialog({
+                // 强制切回列表模式
+                state.entryMode = 'item'; 
+
+                const route = frappe.get_route();
+                const storeId = route[1];
+
+                if (!storeId) {
+                    frappe.msgprint("无法获取店铺ID");
+                    return;
+                }
+
+                new frappe.ui.form.MultiSelectDialog({
                     doctype: "Product List",
                     target: this,
                     setters: {
                         name1: null,
                         brand: null,
-                        specifications: null
+                        category: null
                     },
-                    primary_action_label: "添加商品",
+                    primary_action_label: "添加选中商品",
                     action(selections) {
-                        console.log("Selected products:", selections);
-                        frappe.show_alert({
-                            message: __("已选择 {0} 个商品", [selections.length]),
-                            indicator: 'green'
-                        });
-                        cur_dialog.hide();
-                    }
-                });
-                msd1.dialog.set_title("请选择产品列表");
-            };
-
-            const fetchData = () => {
-                const route = frappe.get_route();
-                const storeId = route[1];
-                const parent_id = route[2]; // 虽然这里没用到，但保持获取
-                
-                if (!storeId) {
-                    state.errorMsg = "未找到店铺 ID，请从列表页进入";
-                    return;
-                }
-
-                state.loading = true;
-                page.set_title(`${storeId} - 规划详情`);
-
-                frappe.call({
-                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
-                    args: { store_id: storeId },
-                    callback: (r) => {
-                        state.loading = false;
-                        if (r.message && !r.message.error) {
-                            state.items = r.message;
-                        } else {
-                            state.items = [];
-                            if (r.message && r.message.error) state.errorMsg = r.message.error;
+                        if (!selections || selections.length === 0) {
+                            frappe.msgprint("请选择至少一个商品");
+                            return;
                         }
-                    },
-                    error: (r) => {
-                        state.loading = false;
-                        state.errorMsg = "网络请求失败";
+
+                        // 1. 冻结界面
+                        frappe.dom.freeze("正在添加商品...");
+
+                        frappe.call({
+                            method: "product_sales_planning.planning_system.page.store_detail.store_detail.bulk_insert_commodity_schedule",
+                            args: {
+                                store_id: storeId,
+                                codes: selections
+                            },
+                            callback: function(r) {
+                                // 2. 解冻
+                                frappe.dom.unfreeze();
+                                cur_dialog.hide();
+
+                                if (r.message && r.message.status === "success") {
+                                    frappe.show_alert({
+                                        message: `成功添加 ${r.message.count} 个商品`, 
+                                        indicator: 'green'
+                                    });
+
+                                    // 3. 部分失败提示
+                                    if (r.message.errors && r.message.errors.length > 0) {
+                                        frappe.msgprint({
+                                            title: "部分数据添加失败",
+                                            message: r.message.errors.join("<br>"),
+                                            indicator: "orange"
+                                        });
+                                    }
+
+                                    // 4. === 关键：重置并刷新 ===
+                                    state.searchQuery = ''; // 清空搜索
+                                    state.currentPage = 1;  // 回到第一页
+                                    fetchData();            // 重新请求数据
+                                } else {
+                                    frappe.msgprint({
+                                        title: "添加失败",
+                                        message: r.message ? (r.message.msg || "未知错误") : "服务器无响应",
+                                        indicator: "red"
+                                    });
+                                }
+                            },
+                            error: function(r) {
+                                frappe.dom.unfreeze();
+                                console.error("API Error", r);
+                                frappe.msgprint({
+                                    title: "系统错误",
+                                    message: "请求失败，请查看控制台或联系管理员",
+                                    indicator: "red"
+                                });
+                            }
+                        });
                     }
                 });
             };
 
+            // --- 5. 自动保存 ---
             const saveItem = (item) => {
                 if (!item.name) return;
                 state.isSaving = true;
-                
                 frappe.call({
                     method: "product_sales_planning.planning_system.page.store_detail.store_detail.update_line_item",
-                    args: {
-                        name: item.name,
-                        field: 'quantity',
-                        value: item.quantity
-                    },
-                    callback: (r) => {
-                        state.isSaving = false;
-                        if (r.exc) {
-                            frappe.show_alert({message: '保存失败', indicator: 'red'});
-                        }
+                    args: { name: item.name, field: 'quantity', value: item.quantity },
+                    callback: () => { state.isSaving = false; },
+                    error: () => { 
+                        state.isSaving = false; 
+                        frappe.show_alert({message: "保存失败", indicator: "red"});
                     }
                 });
             };
@@ -276,23 +384,21 @@ function init_vue_app(wrapper, page) {
                 fetchData();
             });
 
-            page.set_secondary_action('刷新', fetchData);
-
-            // --- 关键修改：必须返回 fetchData 供外部调用 ---
             return {
                 ...toRefs(state),
+                totalPages,
                 totalQuantity,
-                filteredItems,
-                openMechanismDialog,
-                openProductListDialog,
+                fetchData,
+                changePage,
+                handleSearch,
                 saveItem,
-                fetchData // <--- 必须在这里导出
+                openProductListDialog,
+                openMechanismDialog
             };
         }
     };
 
     const app = createApp(App);
-    // --- 关键修改：保存 Vue 实例到 wrapper ---
     wrapper.vue_app = app.mount('#store-detail-app');
 }
 
@@ -306,7 +412,6 @@ function inject_css() {
         .custom-table-wrapper { background: #fff; border-radius: 8px; border: 1px solid #ebf1f5; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         input[type=number]:focus { background-color: #e7f5ff !important; outline: none; box-shadow: inset 0 0 0 1px #228be6; }
         
-        /* 新增按钮组样式 */
         .mode-switcher .btn { border: 1px solid #d1d8dd; background-color: #fff; color: #555; }
         .mode-switcher .btn-primary { background-color: #228be6; border-color: #228be6; color: #fff; }
         .mode-switcher .btn:hover { z-index: 2; }

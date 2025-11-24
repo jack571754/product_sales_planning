@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "field:code",
  "creation": "2025-11-21 10:58:59.052273",
  "doctype": "DocType",
@@ -30,24 +31,21 @@
   },
   {
    "fieldname": "brand",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "\u54c1\u724c",
-   "options": "\u53ef\u4e3d\u91d1\n\u53ef\u590d\u7f8e"
+   "label": "\u54c1\u724c"
   },
   {
    "fieldname": "series",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "\u4ea7\u54c1\u7cfb\u5217",
-   "options": "\u533b\u7597\u5668\u68b0\n\u4fdd\u6e7f\u7cfb\u5217\n\u6297\u76b1\u7cfb\u5217"
+   "label": "\u4ea7\u54c1\u7cfb\u5217"
   },
   {
    "fieldname": "category",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "\u4ea7\u54c1\u7c7b\u522b",
-   "options": "\u6b63\u88c5\n\u4e2d\u6837\n\u5c0f\u6837"
+   "label": "\u4ea7\u54c1\u7c7b\u522b"
   },
   {
    "fieldname": "name1",
@@ -68,9 +66,10 @@
   }
  ],
  "grid_page_length": 50,
+ "hide_toolbar": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-23 16:34:30.758777",
+ "modified": "2025-11-24 12:30:46.780780",
  "modified_by": "Administrator",
  "module": "planning system",
  "name": "Product List",
@@ -96,5 +95,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "name1"
+ "title_field": "name1",
+ "track_changes": 1
 }

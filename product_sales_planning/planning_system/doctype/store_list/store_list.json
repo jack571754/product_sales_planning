@@ -1,6 +1,7 @@
 {
  "actions": [],
- "autoname": "format:{store_name}-{##}",
+ "allow_import": 1,
+ "autoname": "format:{id}-{###}",
  "creation": "2025-11-21 15:04:50.769041",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -26,9 +27,8 @@
   },
   {
    "fieldname": "channel",
-   "fieldtype": "Select",
-   "label": "\u5e73\u53f0",
-   "options": "\u5929\u732b\n\u6296\u97f3\n\u4eac\u4e1c\n\u62fc\u591a\u591a\n\u552f\u54c1\u4f1a\n\u5f97\u7269\n\u79c1\u57df\n\u7ebf\u4e0a\u5176\u4ed6\n\u5206\u9500"
+   "fieldtype": "Data",
+   "label": "\u5e73\u53f0"
   },
   {
    "fieldname": "shop_name",
@@ -37,15 +37,15 @@
   },
   {
    "fieldname": "shop_type",
-   "fieldtype": "Select",
-   "label": "\u7c7b\u578b",
-   "options": "\u81ea\u8fd0\u8425\n\u8fbe\u64ad"
+   "fieldtype": "Data",
+   "label": "\u7c7b\u578b"
   }
  ],
  "grid_page_length": 50,
+ "hide_toolbar": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-23 16:31:48.096697",
+ "modified": "2025-11-24 13:59:40.308213",
  "modified_by": "Administrator",
  "module": "planning system",
  "name": "Store List",
@@ -67,9 +67,12 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "shop_name,channel",
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "shop_name"
+ "title_field": "shop_name",
+ "track_changes": 1,
+ "track_seen": 1
 }
