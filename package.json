@@ -1,0 +1,15 @@
+{
+  "name": "product_sales_planning",
+  "version": "1.0.0",
+  "description": "product sales planning system",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@visactor/vtable": "^1.22.4"
+  }
+}

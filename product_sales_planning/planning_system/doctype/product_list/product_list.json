@@ -6,6 +6,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "\u4ea7\u54c1\u7b80\u79f0",
   "nickname",
   "name1",
   "code",
@@ -63,13 +64,18 @@
    "fieldname": "nickname",
    "fieldtype": "Data",
    "label": "\u4ea7\u54c1\u6635\u79f0"
+  },
+  {
+   "fieldname": "\u4ea7\u54c1\u7b80\u79f0",
+   "fieldtype": "Data",
+   "label": "\u4ea7\u54c1\u7b80\u79f0"
   }
  ],
  "grid_page_length": 50,
  "hide_toolbar": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-24 12:30:46.780780",
+ "modified": "2025-11-25 11:38:00.345415",
  "modified_by": "Administrator",
  "module": "planning system",
  "name": "Product List",
