@@ -17,8 +17,12 @@ api_methods = [
     "product_sales_planning.planning_system.page.store_detail.store_detail.bulk_insert_commodity_schedule",
     "product_sales_planning.planning_system.page.store_detail.store_detail.batch_update_quantity",
     "product_sales_planning.planning_system.page.store_detail.store_detail.batch_delete_items",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.batch_delete_by_codes",
     "product_sales_planning.planning_system.page.store_detail.store_detail.get_filter_options",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.apply_mechanisms"
+    "product_sales_planning.planning_system.page.store_detail.store_detail.apply_mechanisms",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.import_commodity_data",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.download_import_template",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.update_month_quantity"
 ]
 
 

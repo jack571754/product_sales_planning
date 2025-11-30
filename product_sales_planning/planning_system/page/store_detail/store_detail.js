@@ -1,5 +1,6 @@
 // product_sales_planning/planning_system/page/store_detail/store_detail.js
 
+// 1. 页面加载入口 (只执行一次)
 frappe.pages['store-detail'].on_page_load = function(wrapper) {
     const page = frappe.ui.make_app_page({
         parent: wrapper,
@@ -7,887 +8,1034 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
         single_column: true
     });
 
+    // 预留 DOM 挂载点
     $(wrapper).find('.layout-main-section').html(`
-        <div id="store-detail-app">
-            <div class="text-center p-5">
+        <div id="store-detail-app" style="min-height: 600px;">
+            <div class="text-center p-5 text-muted">
                 <div class="spinner-border text-primary" role="status"></div>
-                <div class="mt-2 text-muted">正在加载...</div>
+                <div class="mt-2">正在加载资源...</div>
             </div>
         </div>
     `);
 
-    inject_css();
+    // 加载 AG Grid 库（本地资源）
+    if (!window.agGrid) {
+        // 加载 AG Grid 基础 CSS
+        $('<link>').attr({
+            rel: 'stylesheet',
+            href: '/assets/product_sales_planning/js/lib/ag-grid.min.css',
+            id: 'ag-grid-css'
+        }).appendTo('head');
 
-    if (window.Vue) {
-        init_vue_app(wrapper, page);
-    } else {
-        frappe.require("/assets/frappe/node_modules/vue/dist/vue.global.js", function() {
-            init_vue_app(wrapper, page);
+        // 加载 AG Grid Alpine 主题 CSS
+        $('<link>').attr({
+            rel: 'stylesheet',
+            href: '/assets/product_sales_planning/js/lib/ag-theme-alpine.min.css',
+            id: 'ag-theme-alpine-css'
+        }).appendTo('head');
+
+        // 加载 AG Grid JS
+        $.getScript('/assets/product_sales_planning/js/lib/ag-grid-community.min.js', function() {
+            console.log('✅ AG Grid loaded successfully from local');
         });
     }
+
+    // 样式注入
+    if (!document.getElementById('store-detail-css')) {
+
+        $('<style>').text(`
+            /* 固定筛选器区域 */
+            .store-planning-body {
+                padding: 10px;
+                max-width: 100%;
+                margin: 0 auto;
+                display: flex;
+                flex-direction: column;
+                height: calc(100vh - 100px);
+            }
+
+            /* 固定头部区域（操作栏 + 筛选器 + 统计卡片） */
+            .fixed-header-area {
+                position: sticky;
+                top: 0;
+                z-index: 100;
+                background: var(--bg-color, #fff);
+                padding-bottom: 10px;
+                border-bottom: 2px solid var(--border-color);
+                margin-bottom: 10px;
+            }
+
+            .filter-card {
+                background: var(--card-bg);
+                padding: 12px 15px;
+                border-radius: 6px;
+                border: 1px solid var(--border-color);
+                margin-bottom: 10px;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            }
+            .filter-card .row {
+                align-items: flex-end;
+            }
+
+            /* AG Grid 表格容器样式 */
+            .datatable-container {
+                flex: 1;
+                background: #fff;
+                border-radius: 6px;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                overflow: hidden;
+                min-height: 400px;
+            }
+
+            #ag-grid-container {
+                width: 100%;
+                height: 100%;
+            }
+
+            /* 操作按钮样式 */
+            .action-buttons {
+                display: flex;
+                gap: 8px;
+                justify-content: flex-end;
+                align-items: center;
+            }
+            .action-buttons .btn-sm {
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+
+            /* 统计卡片样式 */
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 10px;
+                margin-bottom: 0;
+            }
+            .stat-card {
+                padding: 12px 15px;
+                background: linear-gradient(135deg, var(--card-bg) 0%, #f8f9fa 100%);
+                border-radius: 6px;
+                border: 1px solid var(--border-color);
+                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            }
+            .stat-label {
+                font-size: 11px;
+                color: var(--text-muted);
+                margin-bottom: 4px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .stat-number {
+                font-size: 20px;
+                font-weight: bold;
+                line-height: 1.2;
+            }
+            .text-primary { color: #4472C4; }
+            .text-success { color: #28a745; }
+            .btn-search {
+                width: 100%;
+            }
+        `).appendTo('head');
+    }
+
+    // 直接实例化管理器
+    wrapper.store_manager = new StorePlanningManager(wrapper, page);
 };
 
+// 2. 页面显示入口 (路由变化、切换Tab都会触发)
 frappe.pages['store-detail'].on_page_show = function(wrapper) {
-    // 必须确保 Vue 实例存在
-    if (!wrapper.vue_app) return;
-
-    console.log("页面显示，开始同步状态...");
-
-    // 第一步：刷新下拉菜单选项（确保有 Store 和 Task 列表供选择）
-    // 这一步必须在最前面，否则即使赋值了 filters.storeId，Dropdown 也可能显示空白
-    if (wrapper.vue_app.loadFilterOptions) {
-        wrapper.vue_app.loadFilterOptions();
-    }
-
-    // 第二步：从路由同步参数到 Vue 的 filters 状态
-    // 这一步必须在 fetchData 之前
-    if (wrapper.vue_app.initFiltersFromRoute) {
-        wrapper.vue_app.initFiltersFromRoute();
-    }
-
-    // 第三步：根据最新的 filters 状态拉取表格数据
-    if (wrapper.vue_app.fetchData) {
-        wrapper.vue_app.fetchData();
+    if (wrapper.store_manager) {
+        wrapper.store_manager.refresh_from_route();
     }
 };
 
-function init_vue_app(wrapper, page) {
-    if (!window.Vue) {
-        $(wrapper).find('#store-detail-app').html(
-            `<div class="alert alert-danger">Vue 加载失败</div>`
-        );
-        return;
+// --- 核心业务类 ---
+class StorePlanningManager {
+    constructor(wrapper, page) {
+        this.wrapper = $(wrapper);
+        this.page = page;
+        this.data = [];
+        this.months = [];
+        this.checked_rows = new Set();
+        this.view_mode = 'multi';  // 固定使用多月视图
+
+        // 程序锁：防止 set_value 触发 change 事件导致死循环
+        this.is_programmatic_update = false;
+
+        this.init_ui();
+
+        // 初始化时立即尝试读取一次路由
+        this.refresh_from_route();
     }
 
-    const { createApp, reactive, computed, onMounted, toRefs, watch } = window.Vue;
+    init_ui() {
+        this.page.clear_primary_action();
+        this.page.set_primary_action('刷新', () => this.fetch_data());
+        this.page.clear_menu();
 
-    const App = {
-        template: `
-            <div class="store-planning-container">
-                
-                <!-- 筛选器和工具栏 -->
-                <div class="filter-toolbar">
-                    <div class="filter-section">
-                        <div class="filter-group">
-                            <label class="filter-label">🏪 店铺</label>
-                            <select v-model="filters.storeId" class="form-control form-control-sm" @change="applyFilters">
-                                <option value="">全部店铺</option>
-                                <option v-for="store in storeList" :key="store" :value="store">{{ store }}</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label class="filter-label">📋 计划任务</label>
-                            <select v-model="filters.taskId" class="form-control form-control-sm" @change="applyFilters">
-                                <option value="">全部任务</option>
-                                <option v-for="task in taskList" :key="task" :value="task">{{ task }}</option>
-                            </select>
-                        </div>
-
-                        <div class="filter-group">
-                            <label class="filter-label">🏷️ 品牌</label>
-                            <input type="text" 
-                                v-model="filters.brand" 
-                                class="form-control form-control-sm" 
-                                placeholder="搜索品牌..."
-                                @keyup.enter="applyFilters">
-                        </div>
-
-                        <div class="filter-group">
-                            <label class="filter-label">📦 类别</label>
-                            <input type="text" 
-                                v-model="filters.category" 
-                                class="form-control form-control-sm" 
-                                placeholder="搜索类别..."
-                                @keyup.enter="applyFilters">
-                        </div>
-
-                        <div class="filter-actions">
-                            <button class="btn btn-sm btn-primary" @click="applyFilters">
-                                🔍 筛选
+        this.wrapper.find('#store-detail-app').html(`
+            <div class="store-planning-body">
+                <!-- 🔥 固定头部区域 -->
+                <div class="fixed-header-area">
+                    <!-- 顶部操作栏 -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">商品计划填报</h5>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-secondary btn-return">
+                                <span class="fa fa-arrow-left"></span> 返回
                             </button>
-                            <button class="btn btn-sm btn-default" @click="resetFilters">
-                                ↻ 重置
+                            <button class="btn btn-sm btn-warning btn-toggle-filter">
+                                <span class="fa fa-filter"></span> 显示筛选
+                            </button>
+                            <button class="btn btn-sm btn-danger btn-batch-delete-inline" style="display: none;">
+                                <span class="fa fa-trash"></span> 批量删除
+                            </button>
+                            <button class="btn btn-sm btn-info btn-import-excel">
+                                <span class="fa fa-upload"></span> Excel导入
+                            </button>
+                            <button class="btn btn-sm btn-success btn-add-product">
+                                <span class="fa fa-plus"></span> 添加商品
                             </button>
                         </div>
                     </div>
 
-                    <div class="action-section">
-                        <button class="btn btn-sm btn-success" @click="openProductListDialog" :disabled="loading">
-                            ➕ 添加商品
-                        </button>
-                        <button class="btn btn-sm btn-warning" 
-                            @click="batchEdit" 
-                            :disabled="selectedItems.length === 0">
-                            ✏️ 批量修改 ({{ selectedItems.length }})
-                        </button>
-                        <button class="btn btn-sm btn-danger" 
-                            @click="batchDelete" 
-                            :disabled="selectedItems.length === 0">
-                            🗑️ 批量删除
-                        </button>
+                    <!-- 筛选区域（默认隐藏） -->
+                    <div class="filter-card" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-3 filter-store"></div>
+                            <div class="col-md-3 filter-task"></div>
+                            <div class="col-md-4 filter-search"></div>
+                            <div class="col-md-2 text-right">
+                                <button class="btn btn-primary btn-sm btn-search">
+                                    <span class="fa fa-search"></span> 查询
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- 统计卡片 -->
-                <div class="stats-row">
-                    <div class="stat-card stat-primary">
-                        <div class="stat-icon">📦</div>
-                        <div class="stat-info">
-                            <div class="stat-value">{{ items.length }}</div>
-                            <div class="stat-label">当前页 SKU</div>
+                    <!-- 统计信息 -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">总计划量</div>
+                            <div class="stat-number text-primary" id="stat-total">0</div>
                         </div>
-                    </div>
-                    
-                    <div class="stat-card stat-success">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-info">
-                            <div class="stat-value">{{ totalQuantity }}</div>
-                            <div class="stat-label">总件数</div>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card stat-info">
-                        <div class="stat-icon">📊</div>
-                        <div class="stat-info">
-                            <div class="stat-value">{{ total }}</div>
-                            <div class="stat-label">总记录数</div>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card" :class="isSaving ? 'stat-warning' : 'stat-success'">
-                        <div class="stat-icon">{{ isSaving ? '💾' : '✅' }}</div>
-                        <div class="stat-info">
-                            <div class="stat-value">{{ isSaving ? '保存中' : '已同步' }}</div>
-                            <div class="stat-label">同步状态</div>
+                        <div class="stat-card">
+                            <div class="stat-label">已规划SKU</div>
+                            <div class="stat-number text-success" id="stat-count">0 / 0</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 错误提示 -->
-                <div v-if="errorMsg" class="alert alert-danger alert-dismissible">
-                    {{ errorMsg }}
-                    <button type="button" class="close" @click="errorMsg = ''">×</button>
-                </div>
-
-                <!-- 数据表格 -->
-                <div class="data-table-wrapper">
-                    <div v-if="loading" class="loading-state">
-                        <div class="spinner-border text-primary"></div>
-                        <p>数据加载中...</p>
-                    </div>
-
-                    <table v-else class="data-table">
-                        <thead>
-                            <tr>
-                                <th width="40" class="text-center">
-                                    <input type="checkbox" 
-                                        @change="toggleSelectAll" 
-                                        :checked="isAllSelected">
-                                </th>
-                                <th width="50">#</th>
-                                <th width="200">产品名称</th>
-                                <th width="120">规格</th>
-                                <th width="100">品牌</th>
-                                <th width="100">类别</th>
-                                <th width="120">店铺</th>
-                                <th width="120">任务ID</th>
-                                <th width="100" class="text-right">数量</th>
-                                <th width="80" class="text-center">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-if="items.length === 0">
-                                <td colspan="10" class="empty-state">
-                                    <div class="empty-icon">📭</div>
-                                    <p>暂无数据</p>
-                                    <button class="btn btn-sm btn-primary" @click="openProductListDialog">
-                                        立即添加商品
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr v-else v-for="(item, index) in items" 
-                                :key="item.name" 
-                                :class="{'row-selected': selectedItems.includes(item.name)}">
-                                <td class="text-center">
-                                    <input type="checkbox" 
-                                        :value="item.name" 
-                                        v-model="selectedItems">
-                                </td>
-                                <td class="text-center text-muted">
-                                    {{ (currentPage - 1) * pageSize + index + 1 }}
-                                </td>
-                                <td>
-                                    <div class="product-info">
-                                        <strong>{{ item.name1 || '-' }}</strong>
-                                        <small>{{ item.code }}</small>
-                                    </div>
-                                </td>
-                                <td>{{ item.specifications || '-' }}</td>
-                                <td>
-                                    <span class="badge badge-secondary">{{ item.brand || '-' }}</span>
-                                </td>
-                                <td>
-                                    <span class="badge badge-info">{{ item.category || '-' }}</span>
-                                </td>
-                                <td>{{ item.store_id || '-' }}</td>
-                                <td>
-                                    <small class="text-muted">{{ item.task_id || '未关联' }}</small>
-                                </td>
-                                <td class="text-right">
-                                    <input type="number" 
-                                        class="form-control form-control-sm input-quantity"
-                                        v-model.number="item.quantity"
-                                        @focus="$event.target.select()"
-                                        @blur="saveItem(item)"
-                                        @keypress.enter="$event.target.blur()"
-                                        min="0">
-                                </td>
-                                <td class="text-center">
-                                    <button class="btn btn-sm btn-danger btn-icon" 
-                                        @click="deleteItem(item)"
-                                        title="删除">
-                                        🗑️
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- 分页 -->
-                <div class="pagination-bar" v-if="total > 0">
-                    <div class="pagination-info">
-                        显示 {{ (currentPage - 1) * pageSize + 1 }} - 
-                        {{ Math.min(currentPage * pageSize, total) }} 条，共 {{ total }} 条
-                    </div>
-                    <div class="pagination-controls">
-                        <button class="btn btn-sm" 
-                            :disabled="currentPage === 1" 
-                            @click="changePage(1)">
-                            ⏮️
-                        </button>
-                        <button class="btn btn-sm" 
-                            :disabled="currentPage === 1" 
-                            @click="changePage(currentPage - 1)">
-                            ◀️
-                        </button>
-                        <span class="pagination-current">
-                            {{ currentPage }} / {{ totalPages }}
-                        </span>
-                        <button class="btn btn-sm" 
-                            :disabled="currentPage >= totalPages" 
-                            @click="changePage(currentPage + 1)">
-                            ▶️
-                        </button>
-                        <button class="btn btn-sm" 
-                            :disabled="currentPage >= totalPages" 
-                            @click="changePage(totalPages)">
-                            ⏭️
-                        </button>
-                    </div>
-                    <div class="pagination-jump">
-                        <input type="number" 
-                            v-model.number="jumpPage" 
-                            class="form-control form-control-sm"
-                            style="width: 60px;"
-                            min="1" 
-                            :max="totalPages"
-                            @keyup.enter="changePage(jumpPage)">
-                        <button class="btn btn-sm btn-default" @click="changePage(jumpPage)">
-                            跳转
-                        </button>
-                    </div>
-                </div>
-
+                <!-- 表格容器（可滚动） -->
+                <div id="datatable-container" class="datatable-container"></div>
             </div>
-        `,
-        setup() {
-            const state = reactive({
-                items: [],
-                loading: false,
-                isSaving: false,
-                errorMsg: '',
-                currentPage: 1,
-                pageSize: 20,
-                total: 0,
-                jumpPage: 1,
-                selectedItems: [],
-                filters: {
-                    storeId: '',
-                    taskId: '',
-                    brand: '',
-                    category: ''
-                },
-                storeList: [],
-                taskList: []
-            });
+        `);
 
-            const totalPages = computed(() => Math.ceil(state.total / state.pageSize) || 1);
-            
-            const totalQuantity = computed(() => {
-                return state.items.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
-            });
+        // 绑定按钮事件
+        this.wrapper.find('.btn-return').on('click', () => this.return_to_previous());
+        this.wrapper.find('.btn-add-product').on('click', () => this.open_product_dialog());
+        this.wrapper.find('.btn-import-excel').on('click', () => this.open_import_dialog());
+        this.wrapper.find('.btn-search').on('click', () => this.on_filter_change());
 
-            const isAllSelected = computed(() => {
-                return state.items.length > 0 && state.selectedItems.length === state.items.length;
-            });
+        // 筛选框切换按钮
+        this.wrapper.find('.btn-toggle-filter').on('click', () => this.toggle_filter_card());
 
-// 在 Vue setup() 内部
+        // 内联批量删除按钮
+        this.wrapper.find('.btn-batch-delete-inline').on('click', () => this.handle_batch_delete());
 
-            const initFiltersFromRoute = () => {
-                const route = frappe.get_route();
-                
-                // 🔍 调试日志：看看原始路由是什么，解码后是什么
-                console.log("原始路由参数:", route);
+        this.init_filter_fields();
+    }
 
-                // 🔥 核心修复：添加 decodeURIComponent
-                // 如果 route[1] 存在，就解码；否则设为空字符串
-                const storeIdFromRoute = route[1] ? decodeURIComponent(route[1]) : '';
-                const taskIdFromRoute = route[2] ? decodeURIComponent(route[2]) : '';
-
-                console.log("解码后应用:", storeIdFromRoute, taskIdFromRoute);
-
-                state.filters.storeId = storeIdFromRoute;
-                state.filters.taskId = taskIdFromRoute;
-            };
-
-            // 获取筛选器选项
-            const loadFilterOptions = () => {
-                // 🔥 修复：使用后端自定义方法获取去重后的选项
-                frappe.call({
-                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_filter_options",
-                    callback: (r) => {
-                        if (r.message) {
-                            state.storeList = r.message.stores || [];
-                            state.taskList = r.message.tasks || [];
+    init_filter_fields() {
+        this.filter_group = new frappe.ui.FieldGroup({
+            fields: [
+                {
+                    fieldname: 'store_id',
+                    label: '店铺',
+                    fieldtype: 'Link',
+                    options: 'Store List',
+                    change: () => {
+                        if (!this.is_programmatic_update) {
+                            console.log('🔄 店铺筛选器变化');
+                            setTimeout(() => this.on_filter_change(), 50);
                         }
                     }
+                },
+                {
+                    fieldname: 'task_id',
+                    label: '计划任务',
+                    fieldtype: 'Link',
+                    options: 'Schedule tasks',
+                    change: () => {
+                        if (!this.is_programmatic_update) {
+                            console.log('🔄 任务筛选器变化');
+                            setTimeout(() => this.on_filter_change(), 50);
+                        }
+                    }
+                },
+                {
+                    fieldname: 'search_term',
+                    label: '搜索商品',
+                    fieldtype: 'Data',
+                    change: () => {
+                        // 搜索词变化不更新路由，只刷新数据
+                        if (!this.is_programmatic_update) {
+                            console.log('🔍 搜索词变化');
+                        }
+                    }
+                }
+            ],
+            body: this.wrapper.find('.filter-card')
+        });
+
+        this.filter_group.make();
+
+        // 手动布局到 Grid
+        const f = this.filter_group.fields_dict;
+        f.store_id.$wrapper.appendTo(this.wrapper.find('.filter-store'));
+        f.task_id.$wrapper.appendTo(this.wrapper.find('.filter-task'));
+        f.search_term.$wrapper.appendTo(this.wrapper.find('.filter-search'));
+    }
+
+    // 返回上一级页面
+    return_to_previous() {
+        frappe.set_route('demo-page');
+    }
+
+    // 切换筛选框显示/隐藏
+    toggle_filter_card() {
+        const $filterCard = this.wrapper.find('.filter-card');
+        const $toggleBtn = this.wrapper.find('.btn-toggle-filter');
+
+        if ($filterCard.is(':visible')) {
+            $filterCard.slideUp(200);
+            $toggleBtn.html('<span class="fa fa-filter"></span> 显示筛选');
+        } else {
+            $filterCard.slideDown(200);
+            $toggleBtn.html('<span class="fa fa-filter"></span> 隐藏筛选');
+        }
+    }
+
+    // 🔥 核心：安全的路由同步逻辑
+    refresh_from_route() {
+        const route = frappe.get_route();
+        console.log('🔄 路由刷新:', route);
+
+        // 检查路由是否包含有效的参数
+        const hasValidParams = route[1] && route[1] !== 'undefined' && route[1] !== 'null' && route[1] !== '';
+
+        if (hasValidParams) {
+            const storeId = decodeURIComponent(route[1]);
+            const taskId = route[2] && route[2] !== 'undefined' && route[2] !== 'null' && route[2] !== ''
+                ? decodeURIComponent(route[2])
+                : null;
+
+            console.log('📍 解析路由参数:', { storeId, taskId });
+
+            // 1. 上锁：防止 set_value 触发 change -> set_route 导致死循环
+            this.is_programmatic_update = true;
+
+            // 使用 setTimeout 确保 Frappe 的 Link 字段完全初始化
+            setTimeout(() => {
+                // 设置筛选器值
+                const promises = [];
+
+                if (storeId) {
+                    promises.push(
+                        this.filter_group.fields_dict.store_id.set_value(storeId)
+                    );
+                }
+
+                if (taskId) {
+                    promises.push(
+                        this.filter_group.fields_dict.task_id.set_value(taskId)
+                    );
+                }
+
+                Promise.all(promises).then(() => {
+                    console.log('✅ 筛选器值已设置');
+                    this.is_programmatic_update = false; // 解锁
+
+                    // 2. 直接查询，不依赖 UI 取值 (解决回显慢/需点击的问题)
+                    this.fetch_data({ storeId, taskId });
+                }).catch(err => {
+                    console.error('❌ 设置过滤器值失败:', err);
+                    this.is_programmatic_update = false;
+                    this.fetch_data({ storeId, taskId });
                 });
-            };
+            }, 100);
+        } else {
+            // 路由无有效参数或参数无效，清空过滤器并加载数据
+            console.log('⚠️ 路由参数无效，清空筛选器');
+            this.is_programmatic_update = true;
 
-            // 应用筛选
-            const applyFilters = () => {
-                state.currentPage = 1;
-                state.selectedItems = [];
-                fetchData();
-            };
+            setTimeout(() => {
+                Promise.all([
+                    this.filter_group.fields_dict.store_id.set_value(''),
+                    this.filter_group.fields_dict.task_id.set_value('')
+                ]).then(() => {
+                    this.is_programmatic_update = false;
+                    this.fetch_data();
+                }).catch(err => {
+                    console.error('清空过滤器值失败:', err);
+                    this.is_programmatic_update = false;
+                    this.fetch_data();
+                });
+            }, 100);
+        }
+    }
 
-            // 重置筛选
-            const resetFilters = () => {
-                state.filters = {
-                    storeId: '',
-                    taskId: '',
-                    brand: '',
-                    category: ''
-                };
-                applyFilters();
-            };
+    // 用户手动筛选触发
+    on_filter_change() {
+        if (this.is_programmatic_update) return;
 
-            // 获取数据
-            const fetchData = () => {
-                state.loading = true;
-                const start = (state.currentPage - 1) * state.pageSize;
+        const storeId = this.filter_group.get_value('store_id');
+        const taskId = this.filter_group.get_value('task_id');
+        
+        // 更新路由，这会触发 on_page_show
+        const currentRoute = frappe.get_route();
+        const newStoreId = storeId || '';
+        const newTaskId = taskId || '';
+        
+        // 只有当路由参数真正改变时才更新路由
+        if (currentRoute[1] !== newStoreId || currentRoute[2] !== newTaskId) {
+            frappe.set_route('store-detail', newStoreId, newTaskId);
+        } else {
+            // 路由没变（例如只改了搜索词），直接查询
+            this.fetch_data();
+        }
+    }
 
+    fetch_data(params = null) {
+        // 优先用传入参数，否则取 UI 值
+        const storeId = params ? params.storeId : this.filter_group.get_value('store_id');
+        const taskId = params ? params.taskId : this.filter_group.get_value('task_id');
+        const searchTerm = this.filter_group.get_value('search_term');
+
+        // 清除状态
+        this.checked_rows.clear();
+        this.update_batch_btn();
+
+        frappe.call({
+            method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
+            args: {
+                store_id: storeId && storeId !== 'undefined' && storeId !== 'null' ? storeId : null,
+                task_id: taskId && taskId !== 'undefined' && taskId !== 'null' ? taskId : null,
+                search_term: searchTerm && searchTerm !== 'undefined' && searchTerm !== 'null' ? searchTerm : null,
+                start: 0,
+                page_length: 2000, // 大数据量一次拉取
+                view_mode: this.view_mode
+            },
+            freeze: true,
+            freeze_message: "加载数据...",
+            callback: (r) => {
+                if (r.message && !r.message.error) {
+                    this.data = r.message.data || [];
+                    this.months = r.message.months || [];
+                    this.init_table();
+                    this.update_stats();
+                } else {
+                    // 处理无数据或错误情况
+                    this.data = [];
+                    this.months = [];
+                    this.init_table();
+                    this.update_stats();
+                    if (r.message && r.message.error) {
+                        frappe.msgprint(r.message.error);
+                    }
+                }
+            },
+            error: (err) => {
+                console.error('数据加载失败:', err);
+                frappe.msgprint('数据加载失败，请稍后重试');
+                // 即使失败也要更新界面
+                this.data = [];
+                this.months = [];
+                this.init_table();
+                this.update_stats();
+            }
+        });
+    }
+
+    init_table() {
+        const container = document.getElementById('datatable-container');
+        if (!container) return;
+
+        // 只使用多月视图
+        this.init_multi_month_table(container);
+    }
+
+    init_multi_month_table(container) {
+        const self = this;
+
+        // 如果AG Grid还未加载，等待加载
+        if (!window.agGrid) {
+            setTimeout(() => this.init_multi_month_table(container), 200);
+            return;
+        }
+
+        // 清空容器并创建AG Grid容器（添加ag-theme-alpine类名）
+        container.innerHTML = '<div id="ag-grid-container" class="ag-theme-alpine" style="width: 100%; height: 100%;"></div>';
+
+        // 准备列定义
+        const columnDefs = [
+            {
+                headerName: '',
+                field: 'selected',
+                checkboxSelection: true,
+                headerCheckboxSelection: true,
+                width: 50,
+                pinned: 'left',
+                lockPosition: true,
+                suppressMenu: true
+            },
+            {
+                headerName: '#',
+                valueGetter: 'node.rowIndex + 1',
+                width: 60,
+                pinned: 'left',
+                lockPosition: true,
+                suppressMenu: true
+            },
+            {
+                headerName: '商品名称',
+                field: 'name1',
+                width: 200,
+                pinned: 'left',
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: '编码',
+                field: 'code',
+                width: 120,
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: '规格',
+                field: 'specifications',
+                width: 100,
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: '品牌',
+                field: 'brand',
+                width: 100,
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: '类别',
+                field: 'category',
+                width: 100,
+                filter: 'agTextColumnFilter'
+            }
+        ];
+
+        // 动态添加月份列
+        this.months.forEach(month => {
+            columnDefs.push({
+                headerName: month,
+                field: `month_${month}`,
+                width: 120,
+                editable: true,
+                filter: 'agNumberColumnFilter',
+                cellEditor: 'agNumberCellEditor',
+                cellEditorParams: {
+                    min: 0,
+                    precision: 0
+                },
+                valueGetter: (params) => {
+                    if (params.data && params.data.months && params.data.months[month]) {
+                        return params.data.months[month].quantity || 0;
+                    }
+                    return 0;
+                },
+                valueSetter: (params) => {
+                    const newValue = parseInt(params.newValue) || 0;
+                    if (!params.data.months) {
+                        params.data.months = {};
+                    }
+                    if (!params.data.months[month]) {
+                        params.data.months[month] = {};
+                    }
+                    params.data.months[month].quantity = newValue;
+                    return true;
+                },
+                cellStyle: { textAlign: 'right' }
+            });
+        });
+
+        // 准备行数据
+        const rowData = this.data.map(item => ({
+            ...item,
+            months: item.months || {}
+        }));
+
+        // AG Grid 配置
+        const gridOptions = {
+            columnDefs: columnDefs,
+            rowData: rowData,
+            defaultColDef: {
+                sortable: true,
+                resizable: true,
+                filter: true,
+                floatingFilter: false,  // 默认隐藏浮动筛选器
+                tooltipValueGetter: (params) => {
+                    // 鼠标悬浮时显示完整字段内容
+                    return params.value;
+                }
+            },
+            // 范围选择配置 - 优化选择体验
+            enableRangeSelection: true,  // 启用范围选择
+            enableFillHandle: true,  // 启用填充手柄（右下角小方块拖拽）
+            fillHandleDirection: 'xy',  // 允许横向和纵向填充
+            suppressMultiRangeSelection: false,  // 允许Ctrl+点击多范围选择
+
+            // 选择行为配置
+            rowSelection: 'multiple',  // 允许多行选择
+            suppressRowClickSelection: true,  // 点击单元格不选择行
+            suppressCellFocus: false,  // 允许单元格获得焦点
+
+            ensureDomOrder: true,
+            animateRows: true,
+
+            // 启用分页
+            pagination: true,
+            paginationPageSize: 50,  // 每页50条
+            paginationPageSizeSelector: [20, 50, 100, 200],  // 可选的每页条数
+
+            domLayout: 'normal',
+
+            // Excel 复制粘贴配置（增强版）
+            enableClipboard: true,
+            enableCellTextSelection: true,  // 允许选择单元格文本
+            copyHeadersToClipboard: false,  // 不复制表头，更适合粘贴
+            suppressCopyRowsToClipboard: false,
+            suppressCopySingleCellRanges: false,  // 允许复制单个单元格
+
+            // 处理复制事件
+            processCellForClipboard: (params) => {
+                // 返回单元格的值用于复制
+                return params.value;
+            },
+
+            // 处理粘贴事件
+            processCellFromClipboard: (params) => {
+                // 解析粘贴的值
+                const value = params.value;
+                // 如果是数字列，转换为数字
+                if (params.column.getColId().startsWith('month_')) {
+                    return parseInt(value) || 0;
+                }
+                return value;
+            },
+
+            // 单元格编辑完成事件
+            onCellValueChanged: (event) => {
+                // 获取修改的月份
+                const field = event.column.getColId();
+                const monthMatch = field.match(/^month_(.+)$/);
+
+                if (monthMatch) {
+                    const month = monthMatch[1];
+                    const code = event.data.code;
+                    const newQty = event.newValue || 0;
+                    const oldQty = event.oldValue || 0;
+
+                    if (newQty !== oldQty) {
+                        const currentStoreId = self.filter_group.get_value('store_id');
+                        const currentTaskId = self.filter_group.get_value('task_id');
+
+                        if (!currentStoreId || !currentTaskId) {
+                            frappe.show_alert({
+                                message: '请先选择店铺和计划任务',
+                                indicator: 'red'
+                            }, 3);
+                            return;
+                        }
+
+                        // 保存到后端
+                        self.save_month_quantity(currentStoreId, currentTaskId, code, month, newQty);
+                    }
+                }
+            },
+
+            // 粘贴事件处理
+            onPasteEnd: (event) => {
+                frappe.show_alert({
+                    message: '数据已粘贴，正在保存...',
+                    indicator: 'blue'
+                }, 2);
+
+                // 批量保存粘贴的数据
+                const currentStoreId = self.filter_group.get_value('store_id');
+                const currentTaskId = self.filter_group.get_value('task_id');
+
+                if (!currentStoreId || !currentTaskId) {
+                    frappe.show_alert({
+                        message: '请先选择店铺和计划任务',
+                        indicator: 'red'
+                    }, 3);
+                    return;
+                }
+
+                // 收集所有修改的数据
+                const updates = [];
+                event.api.forEachNode((node) => {
+                    if (node.data && node.data.months) {
+                        self.months.forEach(month => {
+                            const qty = node.data.months[month]?.quantity || 0;
+                            updates.push({
+                                code: node.data.code,
+                                month: month,
+                                quantity: qty
+                            });
+                        });
+                    }
+                });
+
+                // 批量保存
+                self.batch_save_quantities(currentStoreId, currentTaskId, updates);
+            },
+
+            // 选择变化事件
+            onSelectionChanged: (event) => {
+                const selectedRows = event.api.getSelectedRows();
+                self.checked_rows.clear();
+                selectedRows.forEach(row => {
+                    self.checked_rows.add(row.code);
+                });
+                self.update_batch_btn();
+            },
+
+            // 本地化配置
+            localeText: {
+                // 筛选器
+                filterOoo: '筛选...',
+                equals: '等于',
+                notEqual: '不等于',
+                lessThan: '小于',
+                greaterThan: '大于',
+                lessThanOrEqual: '小于或等于',
+                greaterThanOrEqual: '大于或等于',
+                inRange: '范围',
+                contains: '包含',
+                notContains: '不包含',
+                startsWith: '开始于',
+                endsWith: '结束于',
+                andCondition: '且',
+                orCondition: '或',
+                applyFilter: '应用',
+                resetFilter: '重置',
+                clearFilter: '清除',
+                // 其他
+                noRowsToShow: '暂无数据',
+                loadingOoo: '加载中...',
+                page: '页',
+                to: '到',
+                of: '共',
+                next: '下一页',
+                last: '最后一页',
+                first: '第一页',
+                previous: '上一页',
+                // 复制粘贴
+                copy: '复制',
+                copyWithHeaders: '复制（含表头）',
+                paste: '粘贴'
+            }
+        };
+
+        // 创建 AG Grid 实例
+        const gridDiv = document.querySelector('#ag-grid-container');
+        this.gridApi = agGrid.createGrid(gridDiv, gridOptions);
+
+        console.log('✅ AG Grid 表格初始化完成');
+    }
+
+    // 旧的HTML表格渲染方法已被AG Grid替代
+
+    handle_batch_delete() {
+        const codes = Array.from(this.checked_rows);
+        if (!codes.length) return;
+
+        const storeId = this.filter_group.get_value('store_id');
+        const taskId = this.filter_group.get_value('task_id');
+
+        frappe.confirm(`确定删除选中的 ${codes.length} 个商品的所有计划记录?`, () => {
+            frappe.call({
+                method: "product_sales_planning.planning_system.page.store_detail.store_detail.batch_delete_by_codes",
+                args: {
+                    store_id: storeId,
+                    task_id: taskId,
+                    codes: codes
+                },
+                freeze: true,
+                freeze_message: "正在删除...",
+                callback: (r) => {
+                    if (r.message?.status === 'success') {
+                        frappe.show_alert({
+                            message: `成功删除 ${r.message.count} 条记录`,
+                            indicator: 'green'
+                        }, 3);
+                        this.fetch_data();
+                    } else {
+                        frappe.msgprint(r.message?.msg || "删除失败");
+                    }
+                },
+                error: (err) => {
+                    frappe.msgprint("删除失败");
+                    console.error("删除失败:", err);
+                }
+            });
+        });
+    }
+
+    update_batch_btn() {
+        const count = this.checked_rows.size;
+        const $inlineBtn = this.wrapper.find('.btn-batch-delete-inline');
+
+        if (count > 0) {
+            // 显示内联按钮
+            $inlineBtn.show().html(`<span class="fa fa-trash"></span> 批量删除 (${count})`);
+        } else {
+            // 隐藏按钮
+            $inlineBtn.hide();
+        }
+    }
+
+    update_stats() {
+        // 计算所有月份的总计划量
+        let total = 0;
+        let filledCount = 0;
+
+        this.data.forEach(item => {
+            let itemTotal = 0;
+            if (item.months) {
+                Object.values(item.months).forEach(monthData => {
+                    itemTotal += monthData.quantity || 0;
+                });
+            }
+            total += itemTotal;
+            if (itemTotal > 0) {
+                filledCount++;
+            }
+        });
+
+        $('#stat-total').text(total);
+        $('#stat-count').text(`${filledCount} / ${this.data.length}`);
+    }
+
+    open_product_dialog() {
+        const storeId = this.filter_group.get_value('store_id');
+        const taskId = this.filter_group.get_value('task_id');
+
+        if (!storeId || storeId === 'undefined' || storeId === 'null') {
+            frappe.msgprint('请先选择店铺');
+            return;
+        }
+
+        new frappe.ui.form.MultiSelectDialog({
+            doctype: "Product List",
+            target: {},
+            setters: { name1: null, brand: null, category: null },
+            action: (selections) => {
+                if (!selections.length) return;
                 frappe.call({
-                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
-                    args: {
-                        store_id: state.filters.storeId || null,
-                        task_id: state.filters.taskId || null,
-                        brand: state.filters.brand || null,
-                        category: state.filters.category || null,
-                        start: start,
-                        page_length: state.pageSize
-                    },
+                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.bulk_insert_commodity_schedule",
+                    args: { store_id: storeId, task_id: taskId, codes: selections },
+                    freeze: true,
                     callback: (r) => {
-                        state.loading = false;
-                        if (r.message && !r.message.error) {
-                            state.items = r.message.data || [];
-                            state.total = r.message.total_count || 0;
-                            state.errorMsg = '';
+                        if (r.message?.status === "success") {
+                            frappe.show_alert(`添加成功 ${r.message.count} 条`);
+                            this.fetch_data();
                         } else {
-                            state.items = [];
-                            state.total = 0;
-                            if (r.message?.error) state.errorMsg = r.message.error;
+                            frappe.msgprint(r.message?.msg || "添加失败");
                         }
                     },
                     error: (err) => {
-                        state.loading = false;
-                        state.errorMsg = "网络请求失败";
-                        console.error("获取数据失败:", err);
+                        frappe.msgprint("添加失败");
+                        console.error("添加失败:", err);
                     }
                 });
-            };
+            }
+        });
+    }
 
-            // 翻页
-            const changePage = (page) => {
-                if (page < 1 || page > totalPages.value) return;
-                state.currentPage = page;
-                state.jumpPage = page;
-                fetchData();
-                $('.data-table-wrapper').get(0)?.scrollIntoView({ behavior: 'smooth' });
-            };
-
-            // 全选/取消全选
-            const toggleSelectAll = (e) => {
-                if (e.target.checked) {
-                    state.selectedItems = state.items.map(item => item.name);
+    save_month_quantity(storeId, taskId, code, month, quantity) {
+        const self = this;
+        frappe.call({
+            method: "product_sales_planning.planning_system.page.store_detail.store_detail.update_month_quantity",
+            args: {
+                store_id: storeId,
+                task_id: taskId,
+                code: code,
+                month: month,
+                quantity: quantity
+            },
+            callback: (r) => {
+                if (r.message && r.message.status === "success") {
+                    frappe.show_alert({message: '保存成功', indicator: 'green'}, 1);
+                    // 更新统计卡片
+                    self.update_stats();
                 } else {
-                    state.selectedItems = [];
+                    frappe.show_alert({message: '保存失败', indicator: 'red'}, 3);
                 }
-            };
+            },
+            error: (err) => {
+                frappe.show_alert({message: '保存失败', indicator: 'red'}, 3);
+                console.error("保存失败:", err);
+            }
+        });
+    }
 
-            // 批量修改
-            const batchEdit = () => {
-                frappe.prompt([
-                    {
-                        label: '新数量',
-                        fieldname: 'quantity',
-                        fieldtype: 'Int',
-                        reqd: 1,
-                        description: '将选中的 ' + state.selectedItems.length + ' 个商品的数量统一修改为'
-                    }
-                ], (values) => {
-                    frappe.dom.freeze("正在批量修改...");
-                    
-                    frappe.call({
-                        method: "product_sales_planning.planning_system.page.store_detail.store_detail.batch_update_quantity",
-                        args: {
-                            names: state.selectedItems,
-                            quantity: values.quantity
-                        },
-                        callback: (r) => {
-                            frappe.dom.unfreeze();
-                            if (r.message?.status === "success") {
-                                frappe.show_alert({
-                                    message: `✅ 成功修改 ${r.message.count} 条记录`,
-                                    indicator: 'green'
-                                });
-                                state.selectedItems = [];
-                                fetchData();
-                            } else {
-                                frappe.msgprint({
-                                    title: "修改失败",
-                                    message: r.message?.msg || "未知错误",
-                                    indicator: "red"
-                                });
+    batch_save_quantities(storeId, taskId, updates) {
+        const self = this;
+        frappe.call({
+            method: "product_sales_planning.planning_system.page.store_detail.store_detail.batch_update_month_quantities",
+            args: {
+                store_id: storeId,
+                task_id: taskId,
+                updates: updates
+            },
+            freeze: true,
+            freeze_message: "批量保存中...",
+            callback: (r) => {
+                if (r.message && r.message.status === "success") {
+                    frappe.show_alert({
+                        message: `成功保存 ${r.message.count} 条记录`,
+                        indicator: 'green'
+                    }, 3);
+                    // 更新统计卡片
+                    self.update_stats();
+                } else {
+                    frappe.show_alert({
+                        message: r.message?.msg || '批量保存失败',
+                        indicator: 'red'
+                    }, 3);
+                }
+            },
+            error: (err) => {
+                frappe.show_alert({message: '批量保存失败', indicator: 'red'}, 3);
+                console.error("批量保存失败:", err);
+            }
+        });
+    }
+
+    open_import_dialog() {
+        const storeId = this.filter_group.get_value('store_id');
+        const taskId = this.filter_group.get_value('task_id');
+
+        if (!storeId || storeId === 'undefined' || storeId === 'null') {
+            frappe.msgprint('请先选择店铺');
+            return;
+        }
+
+        if (!taskId || taskId === 'undefined' || taskId === 'null') {
+            frappe.msgprint('请先选择计划任务');
+            return;
+        }
+
+        // 创建文件上传对话框
+        const dialog = new frappe.ui.Dialog({
+            title: 'Excel导入',
+            fields: [
+                {
+                    fieldtype: 'HTML',
+                    fieldname: 'help_text',
+                    options: `
+                        <div class="alert alert-info">
+                            <strong>Excel格式要求：</strong><br>
+                            • 第一行：表头（产品编码 | 产品名称 | 2025-01 | 2025-02 | ...）<br>
+                            • 数据行：产品编码 | 产品名称 | 数量1 | 数量2 | ...<br>
+                            • 月份格式支持：2025-01、202501、2025/01<br>
+                            • 空值或0将被跳过<br><br>
+                            <button class="btn btn-sm btn-default" onclick="window.download_template()">
+                                <i class="fa fa-download"></i> 下载导入模板
+                            </button>
+                        </div>
+                    `
+                },
+                {
+                    fieldtype: 'Attach',
+                    fieldname: 'excel_file',
+                    label: '选择Excel文件',
+                    reqd: 1
+                }
+            ],
+            primary_action_label: '开始导入',
+            primary_action: (values) => {
+                if (!values.excel_file) {
+                    frappe.msgprint('请选择Excel文件');
+                    return;
+                }
+
+                dialog.hide();
+
+                frappe.call({
+                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.import_commodity_data",
+                    args: {
+                        store_id: storeId,
+                        task_id: taskId,
+                        file_url: values.excel_file
+                    },
+                    freeze: true,
+                    freeze_message: "正在导入数据...",
+                    callback: (r) => {
+                        if (r.message && r.message.status === "success") {
+                            let msg = r.message.msg;
+                            if (r.message.errors && r.message.errors.length > 0) {
+                                msg += `<br><br><strong>部分错误：</strong><br>${r.message.errors.join('<br>')}`;
                             }
-                        }
-                    });
-                }, '批量修改数量', '确定');
-            };
-
-            // 批量删除
-            const batchDelete = () => {
-                frappe.confirm(
-                    `确定要删除选中的 ${state.selectedItems.length} 个商品吗？`,
-                    () => {
-                        frappe.dom.freeze("正在批量删除...");
-                        
-                        frappe.call({
-                            method: "product_sales_planning.planning_system.page.store_detail.store_detail.batch_delete_items",
-                            args: {
-                                names: state.selectedItems
-                            },
-                            callback: (r) => {
-                                frappe.dom.unfreeze();
-                                if (r.message?.status === "success") {
-                                    frappe.show_alert({
-                                        message: `✅ 成功删除 ${r.message.count} 条记录`,
-                                        indicator: 'green'
-                                    });
-                                    state.selectedItems = [];
-                                    fetchData();
-                                }
-                            }
-                        });
-                    }
-                );
-            };
-
-            // 添加商品
-// 在 setup() 内部
-
-            const openProductListDialog = () => {
-                // 1. 定义核心添加逻辑（作为回调函数）
-                const processSelection = (targetStoreId, targetTaskId) => {
-                    let dialog = new frappe.ui.form.MultiSelectDialog({
-                        doctype: "Product List",
-                        target: {},
-                        setters: {
-                            name1: null,
-                            brand: null,
-                            category: null
-                        },
-                        get_query() {
-                            return { filters: {} };
-                        },
-                        add_filters_group: 0, // 是否允许用户自定义额外筛选
-                        primary_action_label: "添加选中商品",
-                        action(selections) {
-                            if (!selections || selections.length === 0) {
-                                frappe.msgprint("请选择至少一个商品");
-                                return;
-                            }
-
-                            frappe.dom.freeze("正在添加 " + selections.length + " 个商品...");
-
-                            frappe.call({
-                                method: "product_sales_planning.planning_system.page.store_detail.store_detail.bulk_insert_commodity_schedule",
-                                args: {
-                                    store_id: targetStoreId, // 使用传入的目标ID
-                                    task_id: targetTaskId,   // 使用传入的目标ID
-                                    codes: selections
-                                },
-                                callback: function(r) {
-                                    frappe.dom.unfreeze();
-                                    if (cur_dialog) cur_dialog.hide();
-
-                                    if (r.message?.status === "success") {
-                                        frappe.show_alert({
-                                            message: `✅ 成功向 [${targetStoreId}] 添加 ${r.message.count} 个商品`,
-                                            indicator: 'green'
-                                        }, 5);
-                                        
-                                        // 如果当前筛选器是空的，或者是当前操作的店铺，则刷新列表
-                                        // 否则用户可能看不到刚加的数据，给予提示
-                                        const isCurrentView = (!state.filters.storeId || state.filters.storeId === targetStoreId) &&
-                                                            (!state.filters.taskId || state.filters.taskId === targetTaskId);
-                                                            
-                                        if (isCurrentView) {
-                                            state.currentPage = 1;
-                                            fetchData();
-                                        } else {
-                                            frappe.msgprint(`商品已添加，但当前筛选视图不同，请切换筛选器查看。`);
-                                        }
-                                    } else {
-                                        frappe.msgprint({
-                                            title: "添加失败",
-                                            message: r.message?.msg || "未知错误",
-                                            indicator: "red"
-                                        });
-                                    }
-                                },
-                                error: function(xhr) {
-                                    frappe.dom.unfreeze();
-                                    if (cur_dialog) cur_dialog.hide();
-                                    frappe.msgprint({ title: "网络错误", message: "请求失败", indicator: "red" });
-                                }
+                            frappe.msgprint({
+                                title: '导入完成',
+                                message: msg,
+                                indicator: 'green'
+                            });
+                            this.fetch_data();
+                        } else {
+                            frappe.msgprint({
+                                title: '导入失败',
+                                message: r.message?.msg || "导入失败",
+                                indicator: 'red'
                             });
                         }
-                    });
-                };
-
-                // 2. 检查当前是否具备必要的上下文 (店铺和任务)
-                const currentStore = state.filters.storeId;
-                const currentTask = state.filters.taskId;
-
-                if (currentStore && currentTask) {
-                    // A. 筛选器已选好：直接使用
-                    processSelection(currentStore, currentTask);
-                } else {
-                    // B. 筛选器未选（或选了全部）：弹窗询问用户目标
-                    const fields = [];
-                    
-                    if (!currentStore) {
-                        fields.push({
-                            label: '选择目标店铺',
-                            fieldname: 'store_id',
-                            fieldtype: 'Select',
-                            options: state.storeList, // 使用 Vue state 中已加载的列表
-                            reqd: 1
-                        });
-                    }
-                    
-                    if (!currentTask) {
-                        fields.push({
-                            label: '选择目标任务',
-                            fieldname: 'task_id',
-                            fieldtype: 'Select',
-                            options: state.taskList, // 使用 Vue state 中已加载的列表
-                            reqd: 1
-                        });
-                    }
-
-                    frappe.prompt(fields, (values) => {
-                        // 合并当前筛选器值和用户新输入的值
-                        const finalStore = currentStore || values.store_id;
-                        const finalTask = currentTask || values.task_id;
-                        
-                        processSelection(finalStore, finalTask);
-                    }, '请补充添加信息', '下一步');
-                }
-            };
-
-            // 保存单项
-            const saveItem = (item) => {
-                if (!item.name) return;
-                state.isSaving = true;
-                
-                frappe.call({
-                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.update_line_item",
-                    args: { 
-                        name: item.name, 
-                        field: 'quantity', 
-                        value: item.quantity 
                     },
-                    callback: () => { 
-                        state.isSaving = false;
-                        frappe.show_alert({
-                            message: '✅ 已保存',
-                            indicator: 'green'
-                        }, 1);
-                    },
-                    error: () => { 
-                        state.isSaving = false;
-                        frappe.show_alert({
-                            message: "❌ 保存失败",
-                            indicator: "red"
-                        }, 3);
+                    error: (err) => {
+                        frappe.msgprint("导入失败");
+                        console.error("导入失败:", err);
                     }
                 });
-            };
+            }
+        });
 
-            // 删除单项
-            const deleteItem = (item) => {
-                frappe.confirm(
-                    `确定要删除商品 "${item.name1}" 吗？`,
-                    () => {
-                        frappe.call({
-                            method: "frappe.client.delete",
-                            args: {
-                                doctype: "Commodity Schedule",
-                                name: item.name
-                            },
-                            callback: (r) => {
-                                frappe.show_alert({
-                                    message: '✅ 已删除',
-                                    indicator: 'green'
-                                }, 2);
-                                fetchData();
-                            }
-                        });
-                    }
-                );
-            };
-
-            onMounted(() => {
-                initFiltersFromRoute();
-                loadFilterOptions();
-                fetchData();
-            });
-
-            page.set_secondary_action('🔄 刷新', () => {
-                fetchData();
-            });
-
-            return {
-                ...toRefs(state),
-                totalPages,
-                totalQuantity,
-                isAllSelected,
-                fetchData,
-                changePage,
-                initFiltersFromRoute,
-                loadFilterOptions,
-                applyFilters,
-                resetFilters,
-                toggleSelectAll,
-                batchEdit,
-                batchDelete,
-                saveItem,
-                deleteItem,
-                openProductListDialog
-            };
-        }
-    };
-
-    const app = createApp(App);
-    wrapper.vue_app = app.mount('#store-detail-app');
+        dialog.show();
+    }
 }
 
-function inject_css() {
-    const css = `
-        .store-planning-container { padding: 20px; max-width: 100%; background: #f5f7fa; min-height: calc(100vh - 60px); }
-        
-        /* 筛选工具栏 */
-        .filter-toolbar { background: #fff; border: 1px solid #ebeff3; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-        .filter-section { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
-        .filter-group { flex: 0 0 180px; }
-        .filter-label { font-size: 12px; font-weight: 500; color: #6c757d; margin-bottom: 5px; display: block; }
-        .filter-actions { display: flex; gap: 8px; align-items: flex-end; }
-        .action-section { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
-        
-        /* 统计卡片 - 匹配列表页样式 */
-        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
-        .stat-card { 
-            background: #fff; 
-            border: 1px solid #ebeff3; 
-            border-radius: 8px; 
-            padding: 20px; 
-            display: flex; 
-            align-items: center; 
-            gap: 15px;
-            transition: box-shadow 0.2s;
+// 全局函数：下载导入模板
+window.download_template = function() {
+    frappe.call({
+        method: "product_sales_planning.planning_system.page.store_detail.store_detail.download_import_template",
+        freeze: true,
+        freeze_message: "正在生成模板...",
+        callback: (r) => {
+            if (r.message && r.message.status === "success") {
+                // 下载文件
+                window.open(r.message.file_url, '_blank');
+                frappe.show_alert({
+                    message: '模板已生成，正在下载...',
+                    indicator: 'green'
+                }, 3);
+            } else {
+                frappe.msgprint({
+                    title: '生成失败',
+                    message: r.message?.msg || "模板生成失败",
+                    indicator: 'red'
+                });
+            }
+        },
+        error: (err) => {
+            frappe.msgprint("模板生成失败");
+            console.error("模板生成失败:", err);
         }
-        .stat-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .stat-icon { 
-            width: 48px; 
-            height: 48px; 
-            border-radius: 8px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 24px; 
-        }
-        .stat-info { flex: 1; }
-        .stat-value { font-size: 28px; font-weight: 600; color: #212529; line-height: 1.2; }
-        .stat-label { font-size: 11px; color: #868e96; text-transform: uppercase; font-weight: 500; margin-top: 5px; letter-spacing: 0.5px; }
-        
-        /* 图标背景色 - 匹配列表页 */
-        .stat-primary .stat-icon { background: #e7f5ff; color: #1864ab; }
-        .stat-success .stat-icon { background: #ebfbee; color: #2b8a3e; }
-        .stat-info .stat-icon { background: #e3f2fd; color: #1976d2; }
-        .stat-warning .stat-icon { background: #fff4e6; color: #f76707; }
-        
-        /* 数据表格 */
-        .data-table-wrapper { background: #fff; border: 1px solid #ebeff3; border-radius: 8px; overflow: hidden; }
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table thead { background: #f8f9fa; }
-        .data-table th { 
-            padding: 12px 15px; 
-            font-weight: 600; 
-            font-size: 12px; 
-            text-align: left; 
-            border-bottom: 1px solid #dee2e6; 
-            color: #495057; 
-        }
-        .data-table tbody tr { border-bottom: 1px solid #f1f3f5; transition: background 0.15s; }
-        .data-table tbody tr:hover { background: #f8f9fa; }
-        .data-table tbody tr.row-selected { background: #e8f4fd; }
-        .data-table td { padding: 12px 15px; font-size: 14px; color: #343a40; vertical-align: middle; }
-        .product-info strong { display: block; color: #212529; margin-bottom: 3px; font-weight: 600; }
-        .product-info small { color: #868e96; font-size: 12px; }
-        .input-quantity { 
-            text-align: right; 
-            font-weight: 600; 
-            color: #1864ab; 
-            border: 1px solid #ced4da; 
-            border-radius: 4px; 
-            padding: 5px 10px;
-            background: #fff;
-        }
-        .input-quantity:focus { 
-            border-color: #1971c2; 
-            box-shadow: 0 0 0 3px rgba(24, 100, 171, 0.1); 
-            outline: none; 
-        }
-        .btn-icon { padding: 5px 10px; border-radius: 4px; }
-        
-        /* Badge 样式 */
-        .badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-        .badge-secondary { background: #f1f3f5; color: #495057; border: 1px solid #dee2e6; }
-        .badge-info { background: #e7f5ff; color: #1864ab; border: 1px solid #a5d8ff; }
-        
-        /* 空状态和加载状态 */
-        .loading-state, .empty-state { text-align: center; padding: 60px 20px; }
-        .loading-state p, .empty-state p { color: #868e96; margin: 15px 0; font-size: 14px; }
-        .empty-icon { font-size: 48px; opacity: 0.4; margin-bottom: 15px; }
-        
-        /* 分页 */
-        .pagination-bar { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            padding: 15px 20px; 
-            background: #fff; 
-            border: 1px solid #ebeff3; 
-            border-top: none; 
-            border-radius: 0 0 8px 8px; 
-        }
-        .pagination-info { color: #868e96; font-size: 13px; }
-        .pagination-controls { display: flex; gap: 5px; }
-        .pagination-controls .btn { 
-            min-width: 34px; 
-            height: 34px; 
-            padding: 0 10px; 
-            border: 1px solid #dee2e6; 
-            background: #fff; 
-            border-radius: 4px; 
-            font-size: 14px; 
-            color: #495057;
-        }
-        .pagination-controls .btn:hover:not(:disabled) { background: #f8f9fa; border-color: #adb5bd; }
-        .pagination-controls .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .pagination-current { 
-            padding: 7px 15px; 
-            background: #f8f9fa; 
-            border: 1px solid #dee2e6; 
-            border-radius: 4px; 
-            font-weight: 600; 
-            color: #495057; 
-            font-size: 13px; 
-            display: inline-flex; 
-            align-items: center; 
-        }
-        .pagination-jump { display: flex; gap: 5px; align-items: center; }
-        .pagination-jump input { 
-            width: 55px; 
-            height: 34px; 
-            text-align: center; 
-            border: 1px solid #dee2e6; 
-            border-radius: 4px; 
-            font-size: 13px;
-        }
-        
-        /* Alert 样式 */
-        .alert { border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; border: 1px solid transparent; }
-        .alert-danger { background: #fff5f5; border-color: #ffc9c9; color: #c92a2a; }
-        
-        /* 按钮样式 - 匹配系统风格 */
-        .btn-sm { 
-            padding: 7px 14px; 
-            font-size: 13px; 
-            border-radius: 4px; 
-            font-weight: 500; 
-            border: 1px solid transparent;
-            transition: all 0.15s;
-        }
-        .btn-primary { background: #1864ab; border-color: #1864ab; color: #fff; }
-        .btn-primary:hover { background: #1971c2; border-color: #1971c2; }
-        .btn-success { background: #2f9e44; border-color: #2f9e44; color: #fff; }
-        .btn-success:hover { background: #37b24d; border-color: #37b24d; }
-        .btn-warning { background: #f76707; border-color: #f76707; color: #fff; }
-        .btn-warning:hover { background: #fd7e14; border-color: #fd7e14; }
-        .btn-danger { background: #fa5252; border-color: #fa5252; color: #fff; }
-        .btn-danger:hover { background: #ff6b6b; border-color: #ff6b6b; }
-        .btn-default { background: #fff; border: 1px solid #ced4da; color: #495057; }
-        .btn-default:hover { background: #f8f9fa; border-color: #adb5bd; }
-        
-        /* 表单控件 */
-        .form-control-sm { 
-            height: 34px; 
-            padding: 5px 10px; 
-            font-size: 13px; 
-            border: 1px solid #ced4da; 
-            border-radius: 4px;
-        }
-        .form-control-sm:focus { 
-            border-color: #1971c2; 
-            box-shadow: 0 0 0 3px rgba(24, 100, 171, 0.1); 
-            outline: none;
-        }
-        
-        /* 响应式 */
-        @media (max-width: 1400px) {
-            .stats-row { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 768px) {
-            .filter-section { flex-direction: column; }
-            .filter-group { flex: 1 1 100%; }
-            .stats-row { grid-template-columns: 1fr; }
-            .action-section { justify-content: flex-start; }
-        }
-    `;
-    $('<style>').text(css).appendTo('head');
-}
+    });
+};

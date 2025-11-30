@@ -1,0 +1,15 @@
+{% extends "templates/web.html" %}
+{% block title %}测试页面{% endblock %}
+
+{% block head_include %}
+  <!-- 确保加载了 Frappe 的核心 JS（包含全局 frappe 对象） -->
+  {{ include_script('assets/js/frappe-web.min.js') }}
+  {{ include_script('assets/js/desk.min.js') }}
+{% endblock %}
+
+{% block page_content %}
+<div id="vue-app">加载中...</div>
+
+<!-- 加载你打包后的 Vue 应用 -->
+<script type="module" src="/assets/product_sales_planning/vue-test/dist/assets/app.js"></script>
+{% endblock %}

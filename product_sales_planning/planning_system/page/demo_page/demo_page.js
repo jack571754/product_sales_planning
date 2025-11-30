@@ -136,16 +136,44 @@ function init_vue_app(wrapper, page) {
                     callback: function(r) {
                         state.loading = false;
                         if (r.message) {
-                            state.stats = r.message.stats;
-                            state.tasks = r.message.tasks;
-                            state.stats.tasks_count = r.message.tasks ? r.message.tasks.length : 0;
+                            // 检查是否有错误
+                            if (r.message.error) {
+                                frappe.msgprint({
+                                    title: '加载失败',
+                                    message: r.message.error,
+                                    indicator: 'red'
+                                });
+                                state.stats = { ongoing: 0, tasks_count: 0 };
+                                state.tasks = [];
+                                return;
+                            }
+
+                            state.stats = r.message.stats || { ongoing: 0, tasks_count: 0 };
+                            state.tasks = r.message.tasks || [];
+                            state.stats.tasks_count = state.tasks.length;
+                        } else {
+                            // 没有返回数据
+                            state.stats = { ongoing: 0, tasks_count: 0 };
+                            state.tasks = [];
                         }
+                    },
+                    error: function(err) {
+                        state.loading = false;
+                        console.error('获取看板数据失败:', err);
+                        frappe.msgprint({
+                            title: '加载失败',
+                            message: '无法加载看板数据，请稍后重试',
+                            indicator: 'red'
+                        });
+                        state.stats = { ongoing: 0, tasks_count: 0 };
+                        state.tasks = [];
                     }
                 });
             };
 
             const goToDetail = (task) => {
-                frappe.set_route('store-detail', task.store_id, task.parent_id, task.deadline);
+                // 修复：只传递 store_id 和 task_id (parent_id)，移除多余的 deadline 参数
+                frappe.set_route('store-detail', task.store_id, task.parent_id);
             };
 
             // 辅助函数
