@@ -22,7 +22,10 @@ api_methods = [
     "product_sales_planning.planning_system.page.store_detail.store_detail.apply_mechanisms",
     "product_sales_planning.planning_system.page.store_detail.store_detail.import_commodity_data",
     "product_sales_planning.planning_system.page.store_detail.store_detail.download_import_template",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.update_month_quantity"
+    "product_sales_planning.planning_system.page.store_detail.store_detail.update_month_quantity",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.import_mechanism_excel",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.download_mechanism_template",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.batch_update_month_quantities"
 ]
 
 

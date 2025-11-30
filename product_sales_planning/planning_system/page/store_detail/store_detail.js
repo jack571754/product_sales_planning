@@ -184,29 +184,32 @@ class StorePlanningManager {
                             <button class="btn btn-sm btn-secondary btn-return">
                                 <span class="fa fa-arrow-left"></span> 返回
                             </button>
-                            <button class="btn btn-sm btn-warning btn-toggle-filter">
-                                <span class="fa fa-filter"></span> 显示筛选
-                            </button>
                             <button class="btn btn-sm btn-danger btn-batch-delete-inline" style="display: none;">
                                 <span class="fa fa-trash"></span> 批量删除
                             </button>
                             <button class="btn btn-sm btn-info btn-import-excel">
-                                <span class="fa fa-upload"></span> Excel导入
+                                <span class="fa fa-upload"></span> 单品导入
+                            </button>
+                            <button class="btn btn-sm btn-primary btn-import-mechanism">
+                                <span class="fa fa-cubes"></span> 机制导入
                             </button>
                             <button class="btn btn-sm btn-success btn-add-product">
                                 <span class="fa fa-plus"></span> 添加商品
                             </button>
+                            <button class="btn btn-sm btn-default btn-apply-mechanism">
+                                <span class="fa fa-magic"></span> 应用机制
+                            </button>
                         </div>
                     </div>
 
-                    <!-- 筛选区域（默认隐藏） -->
-                    <div class="filter-card" style="display: none;">
-                        <div class="row">
+                    <!-- 筛选区域 -->
+                    <div class="filter-card">
+                        <div class="row align-items-end">
                             <div class="col-md-3 filter-store"></div>
                             <div class="col-md-3 filter-task"></div>
                             <div class="col-md-4 filter-search"></div>
-                            <div class="col-md-2 text-right">
-                                <button class="btn btn-primary btn-sm btn-search">
+                            <div class="col-md-2">
+                                <button class="btn btn-primary btn-sm btn-search" style="width: 100%; margin-bottom: 10px;">
                                     <span class="fa fa-search"></span> 查询
                                 </button>
                             </div>
@@ -235,10 +238,9 @@ class StorePlanningManager {
         this.wrapper.find('.btn-return').on('click', () => this.return_to_previous());
         this.wrapper.find('.btn-add-product').on('click', () => this.open_product_dialog());
         this.wrapper.find('.btn-import-excel').on('click', () => this.open_import_dialog());
+        this.wrapper.find('.btn-import-mechanism').on('click', () => this.open_mechanism_import_dialog());
+        this.wrapper.find('.btn-apply-mechanism').on('click', () => this.open_apply_mechanism_dialog());
         this.wrapper.find('.btn-search').on('click', () => this.on_filter_change());
-
-        // 筛选框切换按钮
-        this.wrapper.find('.btn-toggle-filter').on('click', () => this.toggle_filter_card());
 
         // 内联批量删除按钮
         this.wrapper.find('.btn-batch-delete-inline').on('click', () => this.handle_batch_delete());
@@ -1009,9 +1011,151 @@ class StorePlanningManager {
 
         dialog.show();
     }
+
+    open_mechanism_import_dialog() {
+        const storeId = this.filter_group.get_value('store_id');
+        const taskId = this.filter_group.get_value('task_id');
+
+        if (!storeId || storeId === 'undefined' || storeId === 'null') {
+            frappe.msgprint('请先选择店铺');
+            return;
+        }
+
+        if (!taskId || taskId === 'undefined' || taskId === 'null') {
+            frappe.msgprint('请先选择计划任务');
+            return;
+        }
+
+        // 创建机制导入对话框
+        const dialog = new frappe.ui.Dialog({
+            title: '机制Excel导入',
+            fields: [
+                {
+                    fieldtype: 'HTML',
+                    fieldname: 'help_text',
+                    options: `
+                        <div class="alert alert-success">
+                            <strong>机制导入说明：</strong><br>
+                            • 机制是预定义的产品组合（如促销套装）<br>
+                            • 导入机制数量后，系统会自动拆分到各个单品<br>
+                            • 例如：机制A包含产品X(2个)和产品Y(3个)<br>
+                            &nbsp;&nbsp;导入10个机制A，系统会自动创建：<br>
+                            &nbsp;&nbsp;- 产品X: 10 × 2 = 20个<br>
+                            &nbsp;&nbsp;- 产品Y: 10 × 3 = 30个<br><br>
+                            <button class="btn btn-sm btn-default" onclick="window.download_mechanism_template()">
+                                <i class="fa fa-download"></i> 下载机制导入模板
+                            </button>
+                        </div>
+                    `
+                },
+                {
+                    fieldtype: 'Attach',
+                    fieldname: 'excel_file',
+                    label: '选择Excel文件',
+                    reqd: 1
+                }
+            ],
+            primary_action_label: '开始导入',
+            primary_action: (values) => {
+                if (!values.excel_file) {
+                    frappe.msgprint('请选择Excel文件');
+                    return;
+                }
+
+                dialog.hide();
+
+                frappe.call({
+                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.import_mechanism_excel",
+                    args: {
+                        store_id: storeId,
+                        task_id: taskId,
+                        file_url: values.excel_file
+                    },
+                    freeze: true,
+                    freeze_message: "正在导入机制数据...",
+                    callback: (r) => {
+                        if (r.message && r.message.status === "success") {
+                            let msg = r.message.msg;
+                            if (r.message.errors && r.message.errors.length > 0) {
+                                msg += `<br><br><strong>部分错误：</strong><br>${r.message.errors.join('<br>')}`;
+                            }
+                            frappe.msgprint({
+                                title: '导入完成',
+                                message: msg,
+                                indicator: 'green'
+                            });
+                            this.fetch_data();
+                        } else {
+                            frappe.msgprint({
+                                title: '导入失败',
+                                message: r.message?.msg || "导入失败",
+                                indicator: 'red'
+                            });
+                        }
+                    },
+                    error: (err) => {
+                        frappe.msgprint("导入失败");
+                        console.error("导入失败:", err);
+                    }
+                });
+            }
+        });
+
+        dialog.show();
+    }
+
+    open_apply_mechanism_dialog() {
+        const storeId = this.filter_group.get_value('store_id');
+        const taskId = this.filter_group.get_value('task_id');
+
+        if (!storeId || storeId === 'undefined' || storeId === 'null') {
+            frappe.msgprint('请先选择店铺');
+            return;
+        }
+
+        // 创建机制选择对话框
+        new frappe.ui.form.MultiSelectDialog({
+            doctype: "Product Mechanism",
+            target: {},
+            setters: {
+                mechanism_name: null,
+                category: null,
+                is_active: 1
+            },
+            action: (selections) => {
+                if (!selections.length) return;
+
+                frappe.call({
+                    method: "product_sales_planning.planning_system.page.store_detail.store_detail.apply_mechanisms",
+                    args: {
+                        store_id: storeId,
+                        task_id: taskId,
+                        mechanism_names: selections
+                    },
+                    freeze: true,
+                    freeze_message: "正在应用机制...",
+                    callback: (r) => {
+                        if (r.message?.status === "success") {
+                            frappe.show_alert({
+                                message: r.message.msg,
+                                indicator: 'green'
+                            }, 3);
+                            this.fetch_data();
+                        } else {
+                            frappe.msgprint(r.message?.msg || "应用失败");
+                        }
+                    },
+                    error: (err) => {
+                        frappe.msgprint("应用失败");
+                        console.error("应用失败:", err);
+                    }
+                });
+            }
+        });
+    }
 }
 
-// 全局函数：下载导入模板
+// 全局函数：下载单品导入模板
 window.download_template = function() {
     frappe.call({
         method: "product_sales_planning.planning_system.page.store_detail.store_detail.download_import_template",
@@ -1019,10 +1163,37 @@ window.download_template = function() {
         freeze_message: "正在生成模板...",
         callback: (r) => {
             if (r.message && r.message.status === "success") {
-                // 下载文件
                 window.open(r.message.file_url, '_blank');
                 frappe.show_alert({
                     message: '模板已生成，正在下载...',
+                    indicator: 'green'
+                }, 3);
+            } else {
+                frappe.msgprint({
+                    title: '生成失败',
+                    message: r.message?.msg || "模板生成失败",
+                    indicator: 'red'
+                });
+            }
+        },
+        error: (err) => {
+            frappe.msgprint("模板生成失败");
+            console.error("模板生成失败:", err);
+        }
+    });
+};
+
+// 全局函数：下载机制导入模板
+window.download_mechanism_template = function() {
+    frappe.call({
+        method: "product_sales_planning.planning_system.page.store_detail.store_detail.download_mechanism_template",
+        freeze: true,
+        freeze_message: "正在生成机制模板...",
+        callback: (r) => {
+            if (r.message && r.message.status === "success") {
+                window.open(r.message.file_url, '_blank');
+                frappe.show_alert({
+                    message: '机制模板已生成，正在下载...',
                     indicator: 'green'
                 }, 3);
             } else {

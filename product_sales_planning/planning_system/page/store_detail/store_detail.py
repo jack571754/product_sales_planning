@@ -1157,3 +1157,421 @@ def batch_update_month_quantities(store_id, task_id, updates):
         error_msg = traceback.format_exc()
         frappe.log_error(title="批量更新月份数量失败", message=error_msg)
         return {"status": "error", "msg": f"批量更新失败: {str(e)}"}
+
+
+@frappe.whitelist()
+def import_mechanism_excel(store_id, task_id, file_url):
+    """
+    从Excel导入机制数据并自动拆分到Commodity Schedule
+
+    Excel格式：
+    第一行：表头（机制名称 | 产品编码 | 产品名称 | 单位数量 | 月份1 | 月份2 | ...）
+    数据行：机制名称 | 产品编码 | 产品名称 | 单位数量 | 数量1 | 数量2 | ...
+
+    功能：
+    1. 读取Excel中每行的产品和数量
+    2. 计算最终数量：机制数量 × 单位数量 = 最终数量
+    3. 插入到Commodity Schedule表
+    """
+    try:
+        import openpyxl
+        from frappe.utils.file_manager import get_file_path
+
+        # 参数验证
+        if not store_id or not task_id:
+            return {"status": "error", "msg": "必须指定店铺和任务ID"}
+
+        # 获取文件路径
+        try:
+            file_path = get_file_path(file_url)
+        except Exception as e:
+            return {"status": "error", "msg": f"无法获取文件: {str(e)}"}
+
+        # 读取Excel
+        try:
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            ws = wb.active
+        except Exception as e:
+            return {"status": "error", "msg": f"无法读取Excel文件: {str(e)}"}
+
+        # 读取表头
+        headers = []
+        for cell in ws[1]:
+            if cell.value:
+                headers.append(str(cell.value).strip())
+            else:
+                headers.append("")
+
+        if len(headers) < 5:
+            return {"status": "error", "msg": "Excel格式错误：至少需要5列（机制名称、产品编码、产品名称、单位数量、月份数据）"}
+
+        # 解析月份列（从第5列开始，索引4）
+        month_columns = [h for h in headers[4:] if h]
+
+        if not month_columns:
+            return {"status": "error", "msg": "Excel格式错误：未找到月份列"}
+
+        inserted_count = 0
+        updated_count = 0
+        errors = []
+        skipped_count = 0
+
+        # 从第2行开始读取数据
+        for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            if not row or not row[0]:
+                skipped_count += 1
+                continue
+
+            try:
+                # 读取行数据
+                mechanism_name = str(row[0]).strip() if row[0] else ""
+                product_code = str(row[1]).strip() if row[1] else ""
+                product_name = str(row[2]).strip() if row[2] else ""
+                unit_quantity = row[3] if row[3] else 1
+
+                # 验证必填字段
+                if not product_code:
+                    errors.append(f"第{row_idx}行: 产品编码不能为空")
+                    continue
+
+                # 验证产品是否存在
+                if not frappe.db.exists("Product List", product_code):
+                    errors.append(f"第{row_idx}行: 产品 {product_code} 不存在")
+                    continue
+
+                # 验证单位数量
+                try:
+                    unit_quantity = int(float(unit_quantity))
+                    if unit_quantity <= 0:
+                        unit_quantity = 1
+                except:
+                    errors.append(f"第{row_idx}行: 单位数量格式错误 ({unit_quantity})，使用默认值1")
+                    unit_quantity = 1
+
+                # 处理每个月份的数量
+                for col_idx, month_str in enumerate(month_columns):
+                    try:
+                        # 获取机制数量（从第5列开始，索引为4+col_idx）
+                        if len(row) <= 4 + col_idx:
+                            continue
+
+                        mechanism_quantity = row[4 + col_idx]
+
+                        # 跳过空值或0
+                        if mechanism_quantity is None or mechanism_quantity == '' or mechanism_quantity == 0:
+                            continue
+
+                        try:
+                            mechanism_quantity = int(float(mechanism_quantity))
+                        except:
+                            errors.append(f"第{row_idx}行-{month_str}: 数量格式错误 ({mechanism_quantity})")
+                            continue
+
+                        # 解析月份
+                        if isinstance(month_str, str):
+                            month_str_clean = month_str.replace('/', '-').strip()
+                            if len(month_str_clean) == 6 and month_str_clean.isdigit():
+                                month_str_clean = f"{month_str_clean[:4]}-{month_str_clean[4:]}"
+
+                            if '-' in month_str_clean and len(month_str_clean.split('-')) == 2:
+                                sub_date = f"{month_str_clean}-01"
+                            else:
+                                errors.append(f"第{row_idx}行: 月份格式错误 ({month_str})")
+                                continue
+                        else:
+                            errors.append(f"第{row_idx}行: 月份格式错误 ({month_str})")
+                            continue
+
+                        # 🔥 关键：计算最终数量 = 机制数量 × 单位数量
+                        final_quantity = mechanism_quantity * unit_quantity
+
+                        # 检查记录是否存在
+                        filters = {
+                            "store_id": store_id,
+                            "task_id": task_id,
+                            "code": product_code,
+                            "sub_date": sub_date
+                        }
+
+                        existing = frappe.db.get_value("Commodity Schedule", filters, "name")
+
+                        if existing:
+                            # 更新现有记录（累加数量）
+                            current_qty = frappe.db.get_value("Commodity Schedule", existing, "quantity") or 0
+                            new_qty = current_qty + final_quantity
+                            frappe.db.set_value("Commodity Schedule", existing, "quantity", new_qty)
+                            updated_count += 1
+                        else:
+                            # 创建新记录
+                            new_doc = frappe.new_doc("Commodity Schedule")
+                            new_doc.store_id = store_id
+                            new_doc.task_id = task_id
+                            new_doc.code = product_code
+                            new_doc.quantity = final_quantity
+                            new_doc.sub_date = sub_date
+                            new_doc.insert()
+                            inserted_count += 1
+
+                    except Exception as inner_e:
+                        errors.append(f"第{row_idx}行-{month_str}: {str(inner_e)}")
+
+            except Exception as row_e:
+                errors.append(f"第{row_idx}行: {str(row_e)}")
+
+        frappe.db.commit()
+
+        msg = f"成功导入 {inserted_count} 条，更新 {updated_count} 条"
+        if skipped_count > 0:
+            msg += f"，跳过 {skipped_count} 行空数据"
+
+        return {
+            "status": "success",
+            "inserted": inserted_count,
+            "updated": updated_count,
+            "skipped": skipped_count,
+            "errors": errors[:20],
+            "msg": msg
+        }
+
+    except Exception as e:
+        frappe.db.rollback()
+        import traceback
+        error_msg = traceback.format_exc()
+        frappe.log_error(title="机制Excel导入失败", message=error_msg)
+        return {"status": "error", "msg": f"导入失败: {str(e)}"}
+
+
+@frappe.whitelist()
+def download_mechanism_template():
+    """
+    生成并下载机制导入模板
+    """
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from frappe.utils.file_manager import save_file
+        import io
+        from datetime import datetime
+        from dateutil.relativedelta import relativedelta
+
+        # 创建工作簿
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "机制导入模板"
+
+        # 定义样式
+        header_fill = PatternFill(start_color="70AD47", end_color="70AD47", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        # 生成月份列（不含当前月的未来4个月）
+        current_date = datetime.now()
+        months = []
+        for i in range(1, 5):
+            month_date = current_date + relativedelta(months=i)
+            months.append(month_date.strftime('%Y-%m'))
+
+        # 设置表头
+        headers = ['机制名称', '产品编码', '产品名称', '单位数量'] + months
+        ws.append(headers)
+
+        # 设置表头样式
+        for col_num in range(1, len(headers) + 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+        # 获取示例机制数据
+        sample_mechanisms = frappe.get_all(
+            "Product Mechanism",
+            filters={"is_active": 1},
+            fields=["name", "mechanism_name"],
+            limit=2,
+            order_by="creation desc"
+        )
+
+        # 添加示例数据
+        if sample_mechanisms:
+            for idx, mech in enumerate(sample_mechanisms):
+                mechanism_name = mech.mechanism_name or mech.name
+
+                # 获取机制的产品列表
+                mech_doc = frappe.get_doc("Product Mechanism", mech.name)
+
+                if mech_doc.product_list:
+                    for product_item in mech_doc.product_list:
+                        product_code = product_item.name1
+                        product_quantity = product_item.quantity or 1
+
+                        # 获取产品名称
+                        product_name = frappe.db.get_value("Product List", product_code, "name1") or product_code
+
+                        # 生成示例数量
+                        quantities = [10 + idx * 5 + i * 5 for i in range(len(months))]
+                        row_data = [mechanism_name, product_code, product_name, product_quantity] + quantities
+                        ws.append(row_data)
+
+                        for col_num in range(1, len(headers) + 1):
+                            cell = ws.cell(row=ws.max_row, column=col_num)
+                            cell.border = border
+                            if col_num <= 3:
+                                cell.alignment = Alignment(horizontal='left', vertical='center')
+                            elif col_num == 4:
+                                cell.alignment = Alignment(horizontal='center', vertical='center')
+                            else:
+                                cell.alignment = Alignment(horizontal='right', vertical='center')
+        else:
+            # 如果没有机制，添加空示例
+            example_rows = [
+                ['机制A', 'PROD001', '产品X', 2] + [10 + i * 5 for i in range(len(months))],
+                ['机制A', 'PROD002', '产品Y', 3] + [10 + i * 5 for i in range(len(months))],
+                ['机制B', 'PROD003', '产品Z', 1] + [20 + i * 10 for i in range(len(months))],
+                ['机制B', 'PROD004', '产品W', 5] + [20 + i * 10 for i in range(len(months))],
+            ]
+
+            for row_data in example_rows:
+                ws.append(row_data)
+                for col_num in range(1, len(headers) + 1):
+                    cell = ws.cell(row=ws.max_row, column=col_num)
+                    cell.border = border
+                    if col_num <= 3:
+                        cell.alignment = Alignment(horizontal='left', vertical='center')
+                    elif col_num == 4:
+                        cell.alignment = Alignment(horizontal='center', vertical='center')
+                    else:
+                        cell.alignment = Alignment(horizontal='right', vertical='center')
+
+        # 设置列宽
+        ws.column_dimensions['A'].width = 20
+        ws.column_dimensions['B'].width = 15
+        ws.column_dimensions['C'].width = 25
+        ws.column_dimensions['D'].width = 12
+        for i in range(len(months)):
+            col_letter = openpyxl.utils.get_column_letter(i + 5)
+            ws.column_dimensions[col_letter].width = 12
+
+        # 添加机制明细工作表
+        ws_detail = wb.create_sheet("机制明细")
+
+        # 获取所有激活的机制
+        mechanisms = frappe.get_all(
+            "Product Mechanism",
+            filters={"is_active": 1},
+            fields=["name", "mechanism_name", "content_summary"],
+            order_by="mechanism_name asc"
+        )
+
+        # 设置机制明细表头
+        detail_headers = ["机制名称", "包含产品明细"]
+        ws_detail.append(detail_headers)
+
+        # 设置表头样式
+        for col_num in range(1, 3):
+            cell = ws_detail.cell(row=1, column=col_num)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+        # 填充机制明细数据
+        for mech in mechanisms:
+            mechanism_name = mech.mechanism_name or mech.name
+            content_summary = mech.content_summary or "（未设置产品）"
+
+            ws_detail.append([mechanism_name, content_summary])
+
+            # 设置单元格样式
+            row_num = ws_detail.max_row
+            for col_num in range(1, 3):
+                cell = ws_detail.cell(row=row_num, column=col_num)
+                cell.border = border
+                if col_num == 1:
+                    cell.alignment = Alignment(horizontal='left', vertical='center')
+                else:
+                    cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+
+        # 设置列宽
+        ws_detail.column_dimensions['A'].width = 25
+        ws_detail.column_dimensions['B'].width = 60
+
+        # 添加说明工作表
+        ws_info = wb.create_sheet("填写说明")
+        instructions = [
+            ["机制导入模板使用说明", ""],
+            ["", ""],
+            ["1. 什么是机制导入？", ""],
+            ["", "• 机制是预定义的产品组合（如促销套装）"],
+            ["", "• 导入机制数量后，系统会自动拆分到各个单品"],
+            ["", "• 例如：机制A包含产品X(2个)和产品Y(3个)"],
+            ["", "  导入10个机制A，系统会自动创建："],
+            ["", "  - 产品X: 10 × 2 = 20个"],
+            ["", "  - 产品Y: 10 × 3 = 30个"],
+            ["", ""],
+            ["2. Excel格式说明", ""],
+            ["", "• 第1列：机制名称（可重复，表示同一机制）"],
+            ["", "• 第2列：产品编码（必填）"],
+            ["", "• 第3列：产品名称（仅供参考）"],
+            ["", "• 第4列：单位数量（该产品在机制中的数量）"],
+            ["", "• 第5列起：各月份的机制数量"],
+            ["", "• 同一机制的多个产品，机制名称会重复"],
+            ["", ""],
+            ["3. 填写要求", ""],
+            ["", "• 机制名称必须在系统中存在（请参考\"机制明细\"工作表）"],
+            ["", "• 月份格式支持：2025-01、202501、2025/01"],
+            ["", "• 数量必须为整数，空值或0将被跳过"],
+            ["", "• 如果记录已存在，数量会累加"],
+            ["", ""],
+            ["4. 注意事项", ""],
+            ["", "• 请先在系统中创建机制"],
+            ["", "• 确保机制中已添加产品"],
+            ["", "• 导入前请选择店铺和计划任务"],
+            ["", "• 建议单次导入不超过500行"],
+            ["", ""],
+            ["5. 查看机制明细", ""],
+            ["", "• 请查看\"机制明细\"工作表，了解每个机制包含的产品"],
+            ["", "• 机制明细中显示了每个产品的数量"],
+        ]
+
+        for row_data in instructions:
+            ws_info.append(row_data)
+
+        ws_info.column_dimensions['A'].width = 25
+        ws_info.column_dimensions['B'].width = 50
+        title_cell = ws_info['A1']
+        title_cell.font = Font(bold=True, size=14, color="70AD47")
+
+        # 保存到内存
+        file_content = io.BytesIO()
+        wb.save(file_content)
+        file_content.seek(0)
+
+        # 生成文件名
+        filename = f"mechanism_import_template_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+        # 保存文件
+        file_doc = save_file(
+            fname=filename,
+            content=file_content.read(),
+            dt=None,
+            dn=None,
+            is_private=0
+        )
+
+        return {
+            "status": "success",
+            "file_url": file_doc.file_url,
+            "file_name": filename
+        }
+
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        frappe.log_error(title="生成机制模板失败", message=error_msg)
+        return {"status": "error", "msg": f"生成模板失败: {str(e)}"}
