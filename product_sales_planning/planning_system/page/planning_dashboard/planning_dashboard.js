@@ -1,16 +1,16 @@
-// product_sales_planning/planning_system/page/demo_page/demo_page.js
+// product_sales_planning/planning_system/page/planning_dashboard/planning_dashboard.js
 
 // 1. 页面加载（只执行一次，用于初始化）
-frappe.pages['demo-page'].on_page_load = function(wrapper) {
+frappe.pages['planning-dashboard'].on_page_load = function(wrapper) {
     const page = frappe.ui.make_app_page({
         parent: wrapper,
-        title: '店铺提报执行看板',
+        title: '计划任务看板',
         single_column: true
     });
 
     // 预留挂载点
     $(wrapper).find('.layout-main-section').html(`
-        <div id="demo-page-app">
+        <div id="planning-dashboard-app">
             <div class="text-center p-5">
                 <div class="spinner-border text-primary" role="status"></div>
                 <div class="mt-2 text-muted">正在加载数据看板...</div>
@@ -32,11 +32,18 @@ frappe.pages['demo-page'].on_page_load = function(wrapper) {
 };
 
 // 2. 页面显示（每次切换回来都会执行）
-frappe.pages['demo-page'].on_page_show = function(wrapper) {
+frappe.pages['planning-dashboard'].on_page_show = function(wrapper) {
     // 检查 Vue 实例是否存在且具备 fetchData 方法
     if (wrapper.vue_app && wrapper.vue_app.fetchData) {
         console.log("页面显示，自动刷新数据...");
         wrapper.vue_app.fetchData();
+    }
+};
+
+// 3. 页面卸载（清理资源）
+frappe.pages['planning-dashboard'].on_page_unload = function(wrapper) {
+    if (wrapper.vue_app && wrapper.vue_app.$destroy) {
+        wrapper.vue_app.$destroy();
     }
 };
 
@@ -132,7 +139,7 @@ function init_vue_app(wrapper, page) {
             const fetchData = () => {
                 state.loading = true;
                 frappe.call({
-                    method: "product_sales_planning.planning_system.page.demo_page.demo_page.get_dashboard_data",
+                    method: "product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data",
                     callback: function(r) {
                         state.loading = false;
                         if (r.message) {
@@ -220,7 +227,7 @@ function init_vue_app(wrapper, page) {
 
     const app = createApp(App);
     // 关键：将挂载后的 Vue 实例保存到 wrapper 上
-    wrapper.vue_app = app.mount($(wrapper).find('#demo-page-app')[0]);
+    wrapper.vue_app = app.mount($(wrapper).find('#planning-dashboard-app')[0]);
 }
 
 function inject_css() {

@@ -133,6 +133,9 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
             .text-primary { color: #4472C4; }
             .text-success { color: #28a745; }
             .btn-search {
+                margin-bottom: 10px;
+            }
+            .w-100 {
                 width: 100%;
             }
         `).appendTo('head');
@@ -204,12 +207,12 @@ class StorePlanningManager {
 
                     <!-- 筛选区域 -->
                     <div class="filter-card">
-                        <div class="row align-items-end">
+                        <div class="row">
                             <div class="col-md-3 filter-store"></div>
                             <div class="col-md-3 filter-task"></div>
                             <div class="col-md-4 filter-search"></div>
-                            <div class="col-md-2">
-                                <button class="btn btn-primary btn-sm btn-search" style="width: 100%; margin-bottom: 10px;">
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-primary btn-sm btn-search w-100">
                                     <span class="fa fa-search"></span> 查询
                                 </button>
                             </div>
@@ -301,21 +304,7 @@ class StorePlanningManager {
 
     // 返回上一级页面
     return_to_previous() {
-        frappe.set_route('demo-page');
-    }
-
-    // 切换筛选框显示/隐藏
-    toggle_filter_card() {
-        const $filterCard = this.wrapper.find('.filter-card');
-        const $toggleBtn = this.wrapper.find('.btn-toggle-filter');
-
-        if ($filterCard.is(':visible')) {
-            $filterCard.slideUp(200);
-            $toggleBtn.html('<span class="fa fa-filter"></span> 显示筛选');
-        } else {
-            $filterCard.slideDown(200);
-            $toggleBtn.html('<span class="fa fa-filter"></span> 隐藏筛选');
-        }
+        frappe.set_route('planning-dashboard');
     }
 
     // 🔥 核心：安全的路由同步逻辑

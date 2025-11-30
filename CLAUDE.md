@@ -96,7 +96,7 @@ The application is built around these main DocTypes:
 
 The app uses Frappe's **Page** system (not standard web pages):
 
-- **demo_page** - Dashboard/listing page
+- **planning_dashboard** - Dashboard/listing page showing planning tasks
 - **store_detail** - Main planning interface with VTable grid
   - Route pattern: `/app/store-detail/{store_id}/{task_id}`
   - Uses programmatic route synchronization to prevent infinite loops
@@ -365,7 +365,7 @@ product_sales_planning/
 │   │   │   ├── schedule_tasks/      # Task/period master
 │   │   │   └── product_mechanism/   # Product bundle templates
 │   │   └── page/                    # Custom pages
-│   │       ├── demo_page/           # Dashboard
+│   │       ├── planning_dashboard/  # Dashboard showing planning tasks
 │   │       └── store_detail/        # Main planning interface
 │   ├── public/                      # Static assets
 │   │   ├── js/lib/                  # Third-party JS libraries (VTable, etc.)
