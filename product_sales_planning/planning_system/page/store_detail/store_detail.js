@@ -14,36 +14,14 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
             <div class="text-center p-5 text-muted">
                 <div class="spinner-border text-primary" role="status"></div>
                 <div class="mt-2">正在加载资源...</div>
+                <div class="mt-2 text-muted" style="font-size: 12px;">请稍候,正在初始化页面组件...</div>
             </div>
         </div>
     `);
 
-    // 加载 AG Grid 库（本地资源）
-    if (!window.agGrid) {
-        // 加载 AG Grid 基础 CSS
-        $('<link>').attr({
-            rel: 'stylesheet',
-            href: '/assets/product_sales_planning/js/lib/ag-grid.min.css',
-            id: 'ag-grid-css'
-        }).appendTo('head');
-
-        // 加载 AG Grid Alpine 主题 CSS
-        $('<link>').attr({
-            rel: 'stylesheet',
-            href: '/assets/product_sales_planning/js/lib/ag-theme-alpine.min.css',
-            id: 'ag-theme-alpine-css'
-        }).appendTo('head');
-
-        // 加载 AG Grid JS
-        $.getScript('/assets/product_sales_planning/js/lib/ag-grid-community.min.js', function() {
-            console.log('✅ AG Grid loaded successfully from local');
-        });
-    }
-
-    // 样式注入
+    // 样式注入（优先加载，确保只执行一次）
     if (!document.getElementById('store-detail-css')) {
-
-        $('<style>').text(`
+        $('<style>').attr('id', 'store-detail-css').text(`
             /* 固定筛选器区域 */
             .store-planning-body {
                 padding: 10px;
@@ -141,14 +119,148 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
         `).appendTo('head');
     }
 
-    // 直接实例化管理器
-    wrapper.store_manager = new StorePlanningManager(wrapper, page);
+    // 确保资源加载完成后再初始化（优化版：串行加载，避免竞态）
+    const loadResources = () => {
+        return new Promise((resolve, reject) => {
+            // 检查是否已加载
+            if (window.agGrid && window.agGrid.createGrid) {
+                console.log('✅ AG Grid already loaded');
+                resolve();
+                return;
+            }
+
+            // 串行加载资源，避免并发导致的时序问题
+            const loadCSS = (id, href) => {
+                return new Promise((res, rej) => {
+                    if (document.getElementById(id)) {
+                        console.log(`✅ ${id} already exists`);
+                        res();
+                        return;
+                    }
+                    const link = document.createElement('link');
+                    link.id = id;
+                    link.rel = 'stylesheet';
+                    link.href = href;
+                    link.onload = () => {
+                        console.log(`✅ ${id} loaded`);
+                        // 等待CSS应用到DOM（关键优化）
+                        setTimeout(res, 50);
+                    };
+                    link.onerror = () => {
+                        console.error(`❌ ${id} loading failed`);
+                        rej(new Error(`${id}加载失败`));
+                    };
+                    document.head.appendChild(link);
+                });
+            };
+
+            const loadJS = (src) => {
+                return new Promise((res, rej) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.async = false;
+                    script.onload = () => {
+                        console.log('✅ AG Grid JS loaded');
+                        // 轮询验证 agGrid 对象（兼容慢速浏览器）
+                        let retries = 0;
+                        const checkAgGrid = () => {
+                            if (window.agGrid && window.agGrid.createGrid) {
+                                console.log('✅ AG Grid object ready');
+                                res();
+                            } else if (retries < 20) {
+                                retries++;
+                                setTimeout(checkAgGrid, 100);
+                            } else {
+                                rej(new Error('AG Grid对象初始化超时'));
+                            }
+                        };
+                        checkAgGrid();
+                    };
+                    script.onerror = () => {
+                        console.error('❌ AG Grid JS loading failed');
+                        rej(new Error('AG Grid JS加载失败'));
+                    };
+                    document.head.appendChild(script);
+                });
+            };
+
+            // 串行加载：CSS1 -> CSS2 -> JS（确保顺序）
+            Promise.resolve()
+                .then(() => loadCSS('ag-grid-css', '/assets/product_sales_planning/js/lib/ag-grid.min.css'))
+                .then(() => loadCSS('ag-theme-alpine-css', '/assets/product_sales_planning/js/lib/ag-theme-alpine.min.css'))
+                .then(() => loadJS('/assets/product_sales_planning/js/lib/ag-grid-community.min.js'))
+                .then(() => {
+                    console.log('✅ All resources loaded sequentially');
+                    // 额外等待确保浏览器完成样式计算
+                    setTimeout(resolve, 200);
+                })
+                .catch(reject);
+
+            // 设置总超时（30秒）
+            setTimeout(() => {
+                reject(new Error('资源加载超时（30秒），请检查网络或刷新页面'));
+            }, 30000);
+        });
+    };
+
+    // 加载资源并初始化
+    loadResources()
+        .then(() => {
+            console.log('✅ Resources loaded, initializing manager...');
+            // 确保DOM完全准备好，使用 requestAnimationFrame 确保浏览器完成渲染
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    try {
+                        wrapper.store_manager = new StorePlanningManager(wrapper, page);
+                        console.log('✅ StorePlanningManager initialized');
+                    } catch (error) {
+                        console.error('❌ Manager initialization error:', error);
+                        $(wrapper).find('#store-detail-app').html(`
+                            <div class="alert alert-danger m-5">
+                                <h4>页面初始化失败</h4>
+                                <p>${error.message}</p>
+                                <p class="text-muted">请刷新页面重试</p>
+                                <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
+                            </div>
+                        `);
+                    }
+                }, 100);
+            });
+        })
+        .catch((error) => {
+            console.error('❌ Resource loading error:', error);
+            $(wrapper).find('#store-detail-app').html(`
+                <div class="alert alert-danger m-5">
+                    <h4>资源加载失败</h4>
+                    <p>${error.message}</p>
+                    <p class="text-muted">可能原因：</p>
+                    <ul class="text-muted">
+                        <li>网络连接不稳定</li>
+                        <li>浏览器版本过低（建议使用Chrome 90+、Firefox 88+、Edge 90+）</li>
+                        <li>静态资源文件缺失</li>
+                    </ul>
+                    <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
+                </div>
+            `);
+        });
 };
 
 // 2. 页面显示入口 (路由变化、切换Tab都会触发)
 frappe.pages['store-detail'].on_page_show = function(wrapper) {
     if (wrapper.store_manager) {
-        wrapper.store_manager.refresh_from_route();
+        // ✅ 跳过首次加载（构造函数已经调用了 refresh_from_route）
+        if (wrapper.store_manager.is_first_load) {
+            console.log('⏭️ 跳过 on_page_show 调用（首次加载）');
+            wrapper.store_manager.is_first_load = false;
+            return;
+        }
+
+        // ✅ 避免在页面加载期间重复调用
+        if (!wrapper.store_manager.is_loading) {
+            wrapper.store_manager.refresh_from_route();
+        } else {
+            console.log('⏭️ 跳过 on_page_show 调用（正在加载中）');
+        }
     }
 };
 
@@ -165,9 +277,15 @@ class StorePlanningManager {
         // 程序锁：防止 set_value 触发 change 事件导致死循环
         this.is_programmatic_update = false;
 
+        // 标记是否正在加载数据（避免重复加载）
+        this.is_loading = false;
+
+        // 标记是否是首次加载（避免 on_page_show 重复调用）
+        this.is_first_load = true;
+
         this.init_ui();
 
-        // 初始化时立即尝试读取一次路由
+        // ✅ 初始化时立即尝试读取一次路由
         this.refresh_from_route();
     }
 
@@ -190,16 +308,16 @@ class StorePlanningManager {
                             <button class="btn btn-sm btn-danger btn-batch-delete-inline" style="display: none;">
                                 <span class="fa fa-trash"></span> 批量删除
                             </button>
-                            <button class="btn btn-sm btn-info btn-import-excel">
+                            <button class="btn btn-sm btn-info btn-import-excel" style="display: none;">
                                 <span class="fa fa-upload"></span> 单品导入
                             </button>
-                            <button class="btn btn-sm btn-primary btn-import-mechanism">
+                            <button class="btn btn-sm btn-primary btn-import-mechanism" style="display: none;">
                                 <span class="fa fa-cubes"></span> 机制导入
                             </button>
-                            <button class="btn btn-sm btn-success btn-add-product">
+                            <button class="btn btn-sm btn-success btn-add-product" style="display: none;">
                                 <span class="fa fa-plus"></span> 添加商品
                             </button>
-                            <button class="btn btn-sm btn-default btn-apply-mechanism">
+                            <button class="btn btn-sm btn-default btn-apply-mechanism" style="display: none;">
                                 <span class="fa fa-magic"></span> 应用机制
                             </button>
                             <!-- 审批相关按钮 -->
@@ -332,7 +450,7 @@ class StorePlanningManager {
         frappe.set_route('planning-dashboard');
     }
 
-    // 🔥 核心：安全的路由同步逻辑
+    // 🔥 核心：安全的路由同步逻辑（增强版）
     refresh_from_route() {
         const route = frappe.get_route();
         console.log('🔄 路由刷新:', route);
@@ -351,24 +469,52 @@ class StorePlanningManager {
             // 1. 上锁：防止 set_value 触发 change -> set_route 导致死循环
             this.is_programmatic_update = true;
 
-            // 使用 setTimeout 确保 Frappe 的 Link 字段完全初始化
+            // 使用更长的延迟确保 Frappe 的 Link 字段完全初始化（针对慢速网络）
+            const initDelay = 200;
+
             setTimeout(() => {
+                // 检查筛选器是否已初始化
+                if (!this.filter_group || !this.filter_group.fields_dict) {
+                    console.warn('⚠️ 筛选器未初始化，延迟重试...');
+                    setTimeout(() => this.refresh_from_route(), 300);
+                    return;
+                }
+
                 // 设置筛选器值
                 const promises = [];
 
-                if (storeId) {
+                if (storeId && this.filter_group.fields_dict.store_id) {
                     promises.push(
                         this.filter_group.fields_dict.store_id.set_value(storeId)
+                            .catch(err => {
+                                console.error('设置store_id失败:', err);
+                                return Promise.resolve(); // 继续执行
+                            })
                     );
                 }
 
-                if (taskId) {
+                if (taskId && this.filter_group.fields_dict.task_id) {
                     promises.push(
                         this.filter_group.fields_dict.task_id.set_value(taskId)
+                            .catch(err => {
+                                console.error('设置task_id失败:', err);
+                                return Promise.resolve(); // 继续执行
+                            })
                     );
                 }
 
-                Promise.all(promises).then(() => {
+                // 使用超时保护
+                const timeoutPromise = new Promise((resolve) => {
+                    setTimeout(() => {
+                        console.warn('⚠️ 筛选器设置超时，继续加载数据');
+                        resolve();
+                    }, 3000); // 3秒超时
+                });
+
+                Promise.race([
+                    Promise.all(promises),
+                    timeoutPromise
+                ]).then(() => {
                     console.log('✅ 筛选器值已设置');
                     this.is_programmatic_update = false; // 解锁
 
@@ -377,18 +523,25 @@ class StorePlanningManager {
                 }).catch(err => {
                     console.error('❌ 设置过滤器值失败:', err);
                     this.is_programmatic_update = false;
+                    // 即使失败也尝试加载数据
                     this.fetch_data({ storeId, taskId });
                 });
-            }, 100);
+            }, initDelay);
         } else {
             // 路由无有效参数或参数无效，清空过滤器并加载数据
             console.log('⚠️ 路由参数无效，清空筛选器');
             this.is_programmatic_update = true;
 
             setTimeout(() => {
+                if (!this.filter_group || !this.filter_group.fields_dict) {
+                    console.warn('⚠️ 筛选器未初始化');
+                    this.is_programmatic_update = false;
+                    return;
+                }
+
                 Promise.all([
-                    this.filter_group.fields_dict.store_id.set_value(''),
-                    this.filter_group.fields_dict.task_id.set_value('')
+                    this.filter_group.fields_dict.store_id.set_value('').catch(() => Promise.resolve()),
+                    this.filter_group.fields_dict.task_id.set_value('').catch(() => Promise.resolve())
                 ]).then(() => {
                     this.is_programmatic_update = false;
                     this.fetch_data();
@@ -397,7 +550,7 @@ class StorePlanningManager {
                     this.is_programmatic_update = false;
                     this.fetch_data();
                 });
-            }, 100);
+            }, 200);
         }
     }
 
@@ -432,6 +585,9 @@ class StorePlanningManager {
         this.checked_rows.clear();
         this.update_batch_btn();
 
+        // ✅ 设置加载标志
+        this.is_loading = true;
+
         frappe.call({
             method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
             args: {
@@ -450,18 +606,22 @@ class StorePlanningManager {
                     this.months = r.message.months || [];
                     this.init_table();
                     this.update_stats();
-                    // 加载审批状态
-                    this.load_approval_status();
+                    // ✅ 加载审批状态，传递参数确保使用正确的值
+                    this.load_approval_status(storeId, taskId);
                 } else {
                     // 处理无数据或错误情况
                     this.data = [];
                     this.months = [];
                     this.init_table();
                     this.update_stats();
+                    // ✅ 即使没有数据也要加载审批状态
+                    this.load_approval_status(storeId, taskId);
                     if (r.message && r.message.error) {
                         frappe.msgprint(r.message.error);
                     }
                 }
+                // ✅ 清除加载标志
+                this.is_loading = false;
             },
             error: (err) => {
                 console.error('数据加载失败:', err);
@@ -471,6 +631,10 @@ class StorePlanningManager {
                 this.months = [];
                 this.init_table();
                 this.update_stats();
+                // ✅ 即使失败也要加载审批状态
+                this.load_approval_status(storeId, taskId);
+                // ✅ 清除加载标志
+                this.is_loading = false;
             }
         });
     }
@@ -1229,18 +1393,33 @@ window.download_mechanism_template = function() {
 
 // ========== 审批流程相关方法（添加到StorePlanningManager类的原型） ==========
 
-StorePlanningManager.prototype.load_approval_status = function() {
-    const storeId = this.filter_group.get_value('store_id');
-    const taskId = this.filter_group.get_value('task_id');
+StorePlanningManager.prototype.load_approval_status = function(storeId, taskId) {
+    // ✅ 优先使用传入的参数，如果没有则从 filter_group 获取
+    if (!storeId) {
+        storeId = this.filter_group.get_value('store_id');
+    }
+    if (!taskId) {
+        taskId = this.filter_group.get_value('task_id');
+    }
 
-    if (!storeId || !taskId) {
-        // 没有选择店铺和任务，隐藏审批相关UI
+    console.log('🔍 load_approval_status called with:', { storeId, taskId });
+
+    if (!storeId || !taskId || storeId === 'undefined' || taskId === 'undefined') {
+        // 没有选择店铺和任务，隐藏审批相关UI，显示操作按钮
+        console.log('⚠️ 没有店铺/任务，显示操作按钮');
         this.wrapper.find('.approval-status-area').hide();
         this.wrapper.find('.btn-submit-approval').hide();
+        this.wrapper.find('.btn-withdraw-approval').hide();
         this.wrapper.find('.btn-approve').hide();
         this.wrapper.find('.btn-reject-previous').hide();
         this.wrapper.find('.btn-reject-submitter').hide();
         this.wrapper.find('.btn-view-history').hide();
+
+        // 没有选择店铺和任务时，显示操作按钮（允许自由操作）
+        this.wrapper.find('.btn-add-product').show();
+        this.wrapper.find('.btn-import-excel').show();
+        this.wrapper.find('.btn-import-mechanism').show();
+        this.wrapper.find('.btn-apply-mechanism').show();
         return;
     }
 
@@ -1253,12 +1432,21 @@ StorePlanningManager.prototype.load_approval_status = function() {
         },
         callback: (r) => {
             if (r.message && r.message.status === "success") {
+                console.log('✅ 审批状态加载成功:', r.message);
                 self.approval_data = r.message;
+                self.update_approval_ui();
+            } else {
+                // API 返回失败，按无审批流程处理（显示操作按钮）
+                console.warn('⚠️ 审批状态返回失败，按无审批流程处理');
+                self.approval_data = null;
                 self.update_approval_ui();
             }
         },
         error: (err) => {
-            console.error('加载审批状态失败:', err);
+            console.error('❌ 加载审批状态失败:', err);
+            // 加载失败，按无审批流程处理（显示操作按钮）
+            self.approval_data = null;
+            self.update_approval_ui();
         }
     });
 };
@@ -1270,10 +1458,17 @@ StorePlanningManager.prototype.update_approval_ui = function() {
         // 没有审批流程，隐藏所有审批UI
         this.wrapper.find('.approval-status-area').hide();
         this.wrapper.find('.btn-submit-approval').hide();
+        this.wrapper.find('.btn-withdraw-approval').hide();
         this.wrapper.find('.btn-approve').hide();
         this.wrapper.find('.btn-reject-previous').hide();
         this.wrapper.find('.btn-reject-submitter').hide();
         this.wrapper.find('.btn-view-history').hide();
+
+        // 没有审批流程时，显示所有操作按钮（允许自由编辑）
+        this.wrapper.find('.btn-add-product').show();
+        this.wrapper.find('.btn-import-excel').show();
+        this.wrapper.find('.btn-import-mechanism').show();
+        this.wrapper.find('.btn-apply-mechanism').show();
         return;
     }
 

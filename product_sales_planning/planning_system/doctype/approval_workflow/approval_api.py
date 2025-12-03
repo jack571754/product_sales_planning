@@ -73,7 +73,11 @@ def submit_for_approval(task_id, store_id, comment=None):
 					# 保持 current_approval_step 不变
 					# 获取当前步骤的审批人
 					current_step_obj = workflow.approval_steps[item.current_approval_step - 1]
-					item.current_approver = get_approver_for_role(current_step_obj.approver_role)
+					item.current_approver = get_approver_for_role(
+						current_step_obj.approver_role,
+						store_id=store_id,
+						workflow_step=current_step_obj
+					)
 				else:
 					# 首次提交：从第一级开始
 					item.status = "已提交"
@@ -86,7 +90,11 @@ def submit_for_approval(task_id, store_id, comment=None):
 					item.rejection_reason = None
 					# 获取第一级审批人
 					first_step = workflow.approval_steps[0]
-					item.current_approver = get_approver_for_role(first_step.approver_role)
+					item.current_approver = get_approver_for_role(
+						first_step.approver_role,
+						store_id=store_id,
+						workflow_step=first_step
+					)
 				break
 
 		parent_doc.save(ignore_permissions=True)
@@ -179,7 +187,11 @@ def approve_task_store(task_id, store_id, action, comments=None):
 				# 进入下一级审批
 				target_item.current_approval_step = current_step + 1
 				next_step = workflow.approval_steps[current_step]  # 索引从0开始
-				target_item.current_approver = get_approver_for_role(next_step.approver_role)
+				target_item.current_approver = get_approver_for_role(
+					next_step.approver_role,
+					store_id=store_id,
+					workflow_step=next_step
+				)
 				message = _("审批通过，已转至下一级审批")
 			else:
 				# 最后一级审批，完成审批
@@ -200,7 +212,11 @@ def approve_task_store(task_id, store_id, action, comments=None):
 
 			target_item.current_approval_step = current_step - 1
 			prev_step = workflow.approval_steps[current_step - 2]  # 索引从0开始
-			target_item.current_approver = get_approver_for_role(prev_step.approver_role)
+			target_item.current_approver = get_approver_for_role(
+				prev_step.approver_role,
+				store_id=store_id,
+				workflow_step=prev_step
+			)
 			target_item.approval_status = "已驳回"
 			target_item.can_edit = 1
 			target_item.rejection_reason = comments or "退回上一级"
@@ -561,13 +577,14 @@ def get_applicable_workflow(task_id, store_id):
 		return None
 
 
-def can_approve(tasks_store, workflow):
+def can_approve(tasks_store, workflow, store_id=None):
 	"""
 	检查当前用户是否可以审批
 
 	Args:
 		tasks_store: Tasks Store记录
 		workflow: Approval Workflow文档
+		store_id: 店铺ID（可选）
 
 	Returns:
 		bool: 是否可以审批
@@ -588,7 +605,16 @@ def can_approve(tasks_store, workflow):
 
 	# 检查用户是否有该角色
 	user_roles = frappe.get_roles(current_user)
-	return required_role in user_roles
+	if required_role not in user_roles:
+		return False
+
+	# 如果使用店铺范围分配，需要验证用户是否负责该店铺
+	if current_step.approver_type == "基于店铺范围分配" and store_id:
+		assigned_approver = get_approver_by_store_assignment(required_role, store_id)
+		if assigned_approver and assigned_approver != current_user:
+			return False
+
+	return True
 
 
 def get_approver_for_role(role, store_id=None, workflow_step=None):

@@ -8,57 +8,7 @@ frappe.pages['planning-dashboard'].on_page_load = function(wrapper) {
         single_column: true
     });
 
-    // 添加 Frappe 原生筛选器
-    const store_field = page.add_field({
-        fieldname: 'store_id',
-        label: __('店铺'),
-        fieldtype: 'Link',
-        options: 'Store List',
-        change: function() {
-            console.log('店铺筛选器变化:', this.get_value());
-            if (wrapper.dashboard_manager) {
-                wrapper.dashboard_manager.fetch_data();
-            }
-        }
-    });
-
-    const task_field = page.add_field({
-        fieldname: 'task_id',
-        label: __('计划任务'),
-        fieldtype: 'Link',
-        options: 'Schedule tasks',
-        change: function() {
-            console.log('任务筛选器变化:', this.get_value());
-            if (wrapper.dashboard_manager) {
-                wrapper.dashboard_manager.fetch_data();
-            }
-        }
-    });
-
-    // 添加审批状态筛选器
-    const approval_status_field = page.add_field({
-        fieldname: 'approval_status',
-        label: __('审批状态'),
-        fieldtype: 'Select',
-        options: ['', '待审批', '已通过', '已驳回'],
-        change: function() {
-            console.log('审批状态筛选器变化:', this.get_value());
-            if (wrapper.dashboard_manager) {
-                wrapper.dashboard_manager.fetch_data();
-            }
-        }
-    });
-
-    // 添加"待我审批"快捷按钮
-    page.add_inner_button(__('待我审批'), function() {
-        if (wrapper.dashboard_manager) {
-            wrapper.dashboard_manager.show_my_approvals();
-        }
-    });
-
-    console.log('筛选器已添加:', { store_field, task_field, approval_status_field });
-
-    // 创建内容容器
+    // 创建内容容器（先创建DOM）
     $(wrapper).find('.layout-main-section').html(`
         <div id="planning-dashboard-app">
             <div class="text-center p-5">
@@ -68,12 +18,84 @@ frappe.pages['planning-dashboard'].on_page_load = function(wrapper) {
         </div>
     `);
 
-    // 注入 CSS
+    // 注入 CSS（优先加载）
     inject_css();
 
-    // 初始化管理器
-    wrapper.dashboard_manager = new DashboardManager(wrapper, page);
-    wrapper.dashboard_manager.fetch_data();
+    // 使用 requestAnimationFrame 确保DOM渲染完成后再初始化筛选器
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            try {
+                // 添加 Frappe 原生筛选器
+                const store_field = page.add_field({
+                    fieldname: 'store_id',
+                    label: __('店铺'),
+                    fieldtype: 'Link',
+                    options: 'Store List',
+                    change: function() {
+                        console.log('店铺筛选器变化:', this.get_value());
+                        if (wrapper.dashboard_manager) {
+                            wrapper.dashboard_manager.fetch_data();
+                        }
+                    }
+                });
+
+                const task_field = page.add_field({
+                    fieldname: 'task_id',
+                    label: __('计划任务'),
+                    fieldtype: 'Link',
+                    options: 'Schedule tasks',
+                    change: function() {
+                        console.log('任务筛选器变化:', this.get_value());
+                        if (wrapper.dashboard_manager) {
+                            wrapper.dashboard_manager.fetch_data();
+                        }
+                    }
+                });
+
+                // 添加审批状态筛选器
+                const approval_status_field = page.add_field({
+                    fieldname: 'approval_status',
+                    label: __('审批状态'),
+                    fieldtype: 'Select',
+                    options: ['', '待审批', '已通过', '已驳回'],
+                    change: function() {
+                        console.log('审批状态筛选器变化:', this.get_value());
+                        if (wrapper.dashboard_manager) {
+                            wrapper.dashboard_manager.fetch_data();
+                        }
+                    }
+                });
+
+                // 添加"待我审批"快捷按钮
+                page.add_inner_button(__('待我审批'), function() {
+                    if (wrapper.dashboard_manager) {
+                        wrapper.dashboard_manager.show_my_approvals();
+                    }
+                });
+
+                console.log('✅ 筛选器已添加:', { store_field, task_field, approval_status_field });
+
+                // 初始化管理器
+                wrapper.dashboard_manager = new DashboardManager(wrapper, page);
+
+                // 延迟加载数据，确保所有组件初始化完成
+                setTimeout(() => {
+                    if (wrapper.dashboard_manager) {
+                        wrapper.dashboard_manager.fetch_data();
+                    }
+                }, 100);
+            } catch (error) {
+                console.error('❌ Dashboard initialization error:', error);
+                $(wrapper).find('#planning-dashboard-app').html(`
+                    <div class="alert alert-danger m-5">
+                        <h4>页面初始化失败</h4>
+                        <p>${error.message}</p>
+                        <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
+                    </div>
+                `);
+            }
+        }, 50);
+    });
 };
 
 // 2. 页面显示（每次切换回来都会执行）
