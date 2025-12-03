@@ -1,0 +1,82 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:workflow_name",
+ "creation": "2025-12-02 08:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "workflow_name",
+  "task_type",
+  "store_type",
+  "is_active",
+  "is_default",
+  "approval_steps"
+ ],
+ "fields": [
+  {
+   "fieldname": "workflow_name",
+   "fieldtype": "Data",
+   "label": "\u6d41\u7a0b\u540d\u79f0",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "task_type",
+   "fieldtype": "Select",
+   "label": "\u9002\u7528\u4efb\u52a1\u7c7b\u578b",
+   "options": "MON\nPRO",
+   "reqd": 1
+  },
+  {
+   "fieldname": "store_type",
+   "fieldtype": "Data",
+   "label": "\u9002\u7528\u5e97\u94fa\u7c7b\u578b"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "\u662f\u5426\u542f\u7528"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_default",
+   "fieldtype": "Check",
+   "label": "\u662f\u5426\u9ed8\u8ba4\u6d41\u7a0b"
+  },
+  {
+   "fieldname": "approval_steps",
+   "fieldtype": "Table",
+   "label": "\u5ba1\u6279\u6b65\u9aa4",
+   "options": "Approval Workflow Step",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-02 08:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Approval Workflow",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,0 +1,105 @@
+{
+ "actions": [],
+ "autoname": "format:APH-{YYYY}-{#####}",
+ "creation": "2025-12-02 08:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "reference_doctype",
+  "reference_name",
+  "store_id",
+  "task_id",
+  "approval_step",
+  "approver",
+  "action",
+  "comments",
+  "action_time"
+ ],
+ "fields": [
+  {
+   "default": "Tasks Store",
+   "fieldname": "reference_doctype",
+   "fieldtype": "Data",
+   "label": "\u5173\u8054\u6587\u6863\u7c7b\u578b",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "label": "\u5173\u8054\u6587\u6863\u540d\u79f0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "store_id",
+   "fieldtype": "Link",
+   "label": "\u5e97\u94fa",
+   "options": "Store List",
+   "read_only": 1
+  },
+  {
+   "fieldname": "task_id",
+   "fieldtype": "Link",
+   "label": "\u4efb\u52a1",
+   "options": "Schedule tasks",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_step",
+   "fieldtype": "Int",
+   "label": "\u5ba1\u6279\u6b65\u9aa4",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approver",
+   "fieldtype": "Link",
+   "label": "\u5ba1\u6279\u4eba",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Select",
+   "label": "\u64cd\u4f5c\u7c7b\u578b",
+   "options": "\u63d0\u4ea4\n\u901a\u8fc7\n\u9000\u56de\u4e0a\u7ea7\n\u9000\u56de\u63d0\u4ea4\u4eba\n\u64a4\u56de",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "comments",
+   "fieldtype": "Text",
+   "label": "\u5ba1\u6279\u610f\u89c1/\u9000\u56de\u539f\u56e0",
+   "read_only": 1
+  },
+  {
+   "default": "now",
+   "fieldname": "action_time",
+   "fieldtype": "Datetime",
+   "label": "\u64cd\u4f5c\u65f6\u95f4",
+   "read_only": 1,
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-02 08:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Approval History",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

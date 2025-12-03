@@ -25,7 +25,15 @@ api_methods = [
     "product_sales_planning.planning_system.page.store_detail.store_detail.update_month_quantity",
     "product_sales_planning.planning_system.page.store_detail.store_detail.import_mechanism_excel",
     "product_sales_planning.planning_system.page.store_detail.store_detail.download_mechanism_template",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.batch_update_month_quantities"
+    "product_sales_planning.planning_system.page.store_detail.store_detail.batch_update_month_quantities",
+    # Approval workflow APIs
+    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.submit_for_approval",
+    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.approve_task_store",
+    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.withdraw_approval",
+    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.get_approval_history",
+    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.get_workflow_for_task_store",
+    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.check_can_edit",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.get_approval_status"
 ]
 
 

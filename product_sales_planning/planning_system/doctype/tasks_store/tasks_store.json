@@ -10,7 +10,13 @@
   "sub_time",
   "status",
   "approval_status",
-  "approval_time"
+  "approval_time",
+  "current_approval_step",
+  "workflow_id",
+  "submitted_by",
+  "can_edit",
+  "rejection_reason",
+  "current_approver"
  ],
  "fields": [
   {
@@ -51,13 +57,53 @@
    "fieldtype": "Datetime",
    "label": "\u63d0\u4ea4\u65e5\u671f\u65f6\u95f4",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "current_approval_step",
+   "fieldtype": "Int",
+   "label": "\u5f53\u524d\u5ba1\u6279\u6b65\u9aa4",
+   "read_only": 1
+  },
+  {
+   "fieldname": "workflow_id",
+   "fieldtype": "Link",
+   "label": "\u5ba1\u6279\u6d41\u7a0b",
+   "options": "Approval Workflow",
+   "read_only": 1
+  },
+  {
+   "fieldname": "submitted_by",
+   "fieldtype": "Link",
+   "label": "\u63d0\u4ea4\u4eba",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "can_edit",
+   "fieldtype": "Check",
+   "label": "\u53ef\u7f16\u8f91"
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Text",
+   "label": "\u9000\u56de\u539f\u56e0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "current_approver",
+   "fieldtype": "Link",
+   "label": "\u5f53\u524d\u5ba1\u6279\u4eba",
+   "options": "User",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-11-23 16:14:05.832611",
+ "modified": "2025-12-02 08:00:00.000000",
  "modified_by": "Administrator",
  "module": "planning system",
  "name": "Tasks Store",

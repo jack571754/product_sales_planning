@@ -78,9 +78,19 @@ def get_store_commodity_data(store_id=None, task_id=None, brand=None, category=N
         ]
 
         if view_mode == "multi":
+            # 🔥 新增：始终生成未来4个月
+            from datetime import datetime
+            from dateutil.relativedelta import relativedelta
+
+            current_date = datetime.now()
+            default_months = []
+            for i in range(1, 5):  # 未来4个月(不含当前月)
+                month_date = current_date + relativedelta(months=i)
+                default_months.append(month_date.strftime('%Y-%m'))
+
             # 多月视图：按产品聚合，横向展示各月数据
             product_data = {}
-            month_set = set()
+            month_set = set(default_months)  # 🔥 修改：初始化为默认月份
 
             # 🔥 优化1：先收集所有产品的月份数据
             for item in commodity_schedules:
@@ -1575,3 +1585,69 @@ def download_mechanism_template():
         error_msg = traceback.format_exc()
         frappe.log_error(title="生成机制模板失败", message=error_msg)
         return {"status": "error", "msg": f"生成模板失败: {str(e)}"}
+
+
+# ========== 审批流程相关API ==========
+
+@frappe.whitelist()
+def get_approval_status(task_id, store_id):
+	"""
+	获取审批状态和流程信息
+
+	Args:
+		task_id: 任务ID
+		store_id: 店铺ID
+
+	Returns:
+		dict: 审批状态信息
+	"""
+	try:
+		# 导入审批API模块
+		from product_sales_planning.planning_system.doctype.approval_workflow.approval_api import (
+			get_workflow_for_task_store,
+			get_approval_history,
+			check_can_edit
+		)
+
+		# 获取审批流程信息
+		workflow_info = get_workflow_for_task_store(task_id, store_id)
+
+		# 获取审批历史
+		history_info = get_approval_history(task_id, store_id)
+
+		# 检查是否可编辑
+		edit_info = check_can_edit(task_id, store_id)
+
+		# 获取当前用户角色
+		current_user = frappe.session.user
+		user_roles = frappe.get_roles(current_user)
+
+		# 检查是否可以审批
+		can_approve = False
+		if workflow_info.get("has_workflow") and workflow_info.get("current_state"):
+			current_state = workflow_info["current_state"]
+			if current_state.get("approval_status") == "待审批":
+				# 获取当前步骤的审批角色
+				current_step = current_state.get("current_step", 0)
+				if current_step > 0 and workflow_info.get("workflow"):
+					steps = workflow_info["workflow"].get("steps", [])
+					if current_step <= len(steps):
+						required_role = steps[current_step - 1].get("approver_role")
+						can_approve = required_role in user_roles or "System Manager" in user_roles
+
+		return {
+			"status": "success",
+			"workflow": workflow_info,
+			"history": history_info.get("data", []),
+			"can_edit": edit_info.get("can_edit", True),
+			"edit_reason": edit_info.get("reason", ""),
+			"can_approve": can_approve,
+			"user_roles": user_roles
+		}
+
+	except Exception as e:
+		frappe.log_error(title="获取审批状态失败", message=str(e))
+		return {
+			"status": "error",
+			"message": str(e)
+		}

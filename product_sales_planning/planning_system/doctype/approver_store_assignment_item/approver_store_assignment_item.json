@@ -1,0 +1,41 @@
+{
+ "actions": [],
+ "creation": "2025-12-03 01:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "store_id",
+  "store_name"
+ ],
+ "fields": [
+  {
+   "fieldname": "store_id",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "\u5e97\u94fa",
+   "options": "Store List",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "store_id.shop_name",
+   "fieldname": "store_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "\u5e97\u94fa\u540d\u79f0",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-03 01:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Approver Store Assignment Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

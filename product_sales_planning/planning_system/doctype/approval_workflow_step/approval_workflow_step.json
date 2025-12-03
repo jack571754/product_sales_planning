@@ -1,0 +1,80 @@
+{
+ "actions": [],
+ "creation": "2025-12-02 08:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "step_order",
+  "step_name",
+  "approver_type",
+  "approver_role",
+  "store_field",
+  "is_final",
+  "can_reject_to_submitter"
+ ],
+ "fields": [
+  {
+   "fieldname": "step_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "\u6b65\u9aa4\u987a\u5e8f",
+   "reqd": 1
+  },
+  {
+   "fieldname": "step_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "\u6b65\u9aa4\u540d\u79f0",
+   "reqd": 1
+  },
+  {
+   "default": "\u57fa\u4e8e\u89d2\u8272",
+   "fieldname": "approver_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "\u5ba1\u6279\u4eba\u7c7b\u578b",
+   "options": "\u57fa\u4e8e\u89d2\u8272\n\u57fa\u4e8e\u5e97\u94fa\u5c5e\u6027\n\u57fa\u4e8e\u5e97\u94fa\u8303\u56f4\u5206\u914d",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.approver_type=='\u57fa\u4e8e\u89d2\u8272'",
+   "fieldname": "approver_role",
+   "fieldtype": "Link",
+   "label": "\u5ba1\u6279\u4eba\u89d2\u8272",
+   "options": "Role"
+  },
+  {
+   "depends_on": "eval:doc.approver_type=='\u57fa\u4e8e\u5e97\u94fa\u5c5e\u6027'",
+   "description": "\u6307\u5b9aStore List\u4e2d\u7684\u5b57\u6bb5\u540d\uff0c\u5982user1",
+   "fieldname": "store_field",
+   "fieldtype": "Data",
+   "label": "\u5e97\u94fa\u5b57\u6bb5"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_final",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "\u662f\u5426\u6700\u7ec8\u5ba1\u6279"
+  },
+  {
+   "default": "1",
+   "fieldname": "can_reject_to_submitter",
+   "fieldtype": "Check",
+   "label": "\u53ef\u4ee5\u9000\u56de\u63d0\u4ea4\u4eba"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-02 08:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "planning system",
+ "name": "Approval Workflow Step",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

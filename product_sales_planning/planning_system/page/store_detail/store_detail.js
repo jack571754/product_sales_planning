@@ -202,20 +202,33 @@ class StorePlanningManager {
                             <button class="btn btn-sm btn-default btn-apply-mechanism">
                                 <span class="fa fa-magic"></span> 应用机制
                             </button>
+                            <!-- 审批相关按钮 -->
+                            <button class="btn btn-sm btn-warning btn-submit-approval" style="display: none;">
+                                <span class="fa fa-paper-plane"></span> 提交审批
+                            </button>
+                            <button class="btn btn-sm btn-secondary btn-withdraw-approval" style="display: none;">
+                                <span class="fa fa-undo"></span> 撤回
+                            </button>
+                            <button class="btn btn-sm btn-success btn-approve" style="display: none;">
+                                <span class="fa fa-check"></span> 通过
+                            </button>
+                            <button class="btn btn-sm btn-danger btn-reject-previous" style="display: none;">
+                                <span class="fa fa-undo"></span> 退回上一级
+                            </button>
+                            <button class="btn btn-sm btn-danger btn-reject-submitter" style="display: none;">
+                                <span class="fa fa-reply"></span> 退回提交人
+                            </button>
+                            <button class="btn btn-sm btn-info btn-view-history" style="display: none;">
+                                <span class="fa fa-history"></span> 审批历史
+                            </button>
                         </div>
                     </div>
 
                     <!-- 筛选区域 -->
                     <div class="filter-card">
                         <div class="row">
-                            <div class="col-md-3 filter-store"></div>
-                            <div class="col-md-3 filter-task"></div>
-                            <div class="col-md-4 filter-search"></div>
-                            <div class="col-md-2 d-flex align-items-end">
-                                <button class="btn btn-primary btn-sm btn-search w-100">
-                                    <span class="fa fa-search"></span> 查询
-                                </button>
-                            </div>
+                            <div class="col-md-6 filter-store"></div>
+                            <div class="col-md-6 filter-task"></div>
                         </div>
                     </div>
 
@@ -228,6 +241,23 @@ class StorePlanningManager {
                         <div class="stat-card">
                             <div class="stat-label">已规划SKU</div>
                             <div class="stat-number text-success" id="stat-count">0 / 0</div>
+                        </div>
+                    </div>
+
+                    <!-- 审批状态显示区域 -->
+                    <div class="approval-status-area" style="display: none; margin-top: 10px;">
+                        <div class="alert" id="approval-alert">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>审批状态：</strong>
+                                    <span id="approval-status-text">-</span>
+                                    <span id="approval-step-text" style="margin-left: 10px;"></span>
+                                </div>
+                                <div id="rejection-reason-area" style="display: none;">
+                                    <strong>退回原因：</strong>
+                                    <span id="rejection-reason-text" class="text-danger"></span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -243,10 +273,17 @@ class StorePlanningManager {
         this.wrapper.find('.btn-import-excel').on('click', () => this.open_import_dialog());
         this.wrapper.find('.btn-import-mechanism').on('click', () => this.open_mechanism_import_dialog());
         this.wrapper.find('.btn-apply-mechanism').on('click', () => this.open_apply_mechanism_dialog());
-        this.wrapper.find('.btn-search').on('click', () => this.on_filter_change());
 
         // 内联批量删除按钮
         this.wrapper.find('.btn-batch-delete-inline').on('click', () => this.handle_batch_delete());
+
+        // 审批相关按钮
+        this.wrapper.find('.btn-submit-approval').on('click', () => this.submit_for_approval());
+        this.wrapper.find('.btn-withdraw-approval').on('click', () => this.withdraw_approval());
+        this.wrapper.find('.btn-approve').on('click', () => this.approve_task());
+        this.wrapper.find('.btn-reject-previous').on('click', () => this.reject_to_previous());
+        this.wrapper.find('.btn-reject-submitter').on('click', () => this.reject_to_submitter());
+        this.wrapper.find('.btn-view-history').on('click', () => this.view_approval_history());
 
         this.init_filter_fields();
     }
@@ -277,17 +314,6 @@ class StorePlanningManager {
                             setTimeout(() => this.on_filter_change(), 50);
                         }
                     }
-                },
-                {
-                    fieldname: 'search_term',
-                    label: '搜索商品',
-                    fieldtype: 'Data',
-                    change: () => {
-                        // 搜索词变化不更新路由，只刷新数据
-                        if (!this.is_programmatic_update) {
-                            console.log('🔍 搜索词变化');
-                        }
-                    }
                 }
             ],
             body: this.wrapper.find('.filter-card')
@@ -299,7 +325,6 @@ class StorePlanningManager {
         const f = this.filter_group.fields_dict;
         f.store_id.$wrapper.appendTo(this.wrapper.find('.filter-store'));
         f.task_id.$wrapper.appendTo(this.wrapper.find('.filter-task'));
-        f.search_term.$wrapper.appendTo(this.wrapper.find('.filter-search'));
     }
 
     // 返回上一级页面
@@ -425,6 +450,8 @@ class StorePlanningManager {
                     this.months = r.message.months || [];
                     this.init_table();
                     this.update_stats();
+                    // 加载审批状态
+                    this.load_approval_status();
                 } else {
                     // 处理无数据或错误情况
                     this.data = [];
@@ -1196,6 +1223,472 @@ window.download_mechanism_template = function() {
         error: (err) => {
             frappe.msgprint("模板生成失败");
             console.error("模板生成失败:", err);
+        }
+    });
+};
+
+// ========== 审批流程相关方法（添加到StorePlanningManager类的原型） ==========
+
+StorePlanningManager.prototype.load_approval_status = function() {
+    const storeId = this.filter_group.get_value('store_id');
+    const taskId = this.filter_group.get_value('task_id');
+
+    if (!storeId || !taskId) {
+        // 没有选择店铺和任务，隐藏审批相关UI
+        this.wrapper.find('.approval-status-area').hide();
+        this.wrapper.find('.btn-submit-approval').hide();
+        this.wrapper.find('.btn-approve').hide();
+        this.wrapper.find('.btn-reject-previous').hide();
+        this.wrapper.find('.btn-reject-submitter').hide();
+        this.wrapper.find('.btn-view-history').hide();
+        return;
+    }
+
+    const self = this;
+    frappe.call({
+        method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_approval_status",
+        args: {
+            task_id: taskId,
+            store_id: storeId
+        },
+        callback: (r) => {
+            if (r.message && r.message.status === "success") {
+                self.approval_data = r.message;
+                self.update_approval_ui();
+            }
+        },
+        error: (err) => {
+            console.error('加载审批状态失败:', err);
+        }
+    });
+};
+
+StorePlanningManager.prototype.update_approval_ui = function() {
+    const data = this.approval_data;
+
+    if (!data || !data.workflow || !data.workflow.has_workflow) {
+        // 没有审批流程，隐藏所有审批UI
+        this.wrapper.find('.approval-status-area').hide();
+        this.wrapper.find('.btn-submit-approval').hide();
+        this.wrapper.find('.btn-approve').hide();
+        this.wrapper.find('.btn-reject-previous').hide();
+        this.wrapper.find('.btn-reject-submitter').hide();
+        this.wrapper.find('.btn-view-history').hide();
+        return;
+    }
+
+    const currentState = data.workflow.current_state;
+    const canEdit = data.can_edit;
+    const canApprove = data.can_approve;
+
+    // 显示审批状态区域
+    this.wrapper.find('.approval-status-area').show();
+
+    // 更新审批状态文本
+    const statusText = currentState.approval_status || '待审批';
+    const stepText = currentState.current_step > 0
+        ? `(第${currentState.current_step}级审批)`
+        : '';
+
+    this.wrapper.find('#approval-status-text').text(statusText);
+    this.wrapper.find('#approval-step-text').text(stepText);
+
+    // 设置alert样式
+    const alertDiv = this.wrapper.find('#approval-alert');
+    alertDiv.removeClass('alert-info alert-warning alert-success alert-danger');
+
+    if (statusText === '已通过') {
+        alertDiv.addClass('alert-success');
+    } else if (statusText === '已驳回') {
+        alertDiv.addClass('alert-danger');
+        // 显示退回原因
+        if (currentState.rejection_reason) {
+            this.wrapper.find('#rejection-reason-area').show();
+            this.wrapper.find('#rejection-reason-text').text(currentState.rejection_reason);
+        } else {
+            this.wrapper.find('#rejection-reason-area').hide();
+        }
+    } else if (statusText === '待审批') {
+        alertDiv.addClass('alert-warning');
+        this.wrapper.find('#rejection-reason-area').hide();
+    } else {
+        alertDiv.addClass('alert-info');
+        this.wrapper.find('#rejection-reason-area').hide();
+    }
+
+    // 控制按钮显示
+    // 提交审批按钮：首次提交或退回后重新提交
+    if (currentState.approval_status === '已驳回' && canEdit) {
+        // 被退回后，无论退回到哪一级，都允许重新提交
+        this.wrapper.find('.btn-submit-approval').show();
+        this.wrapper.find('.btn-withdraw-approval').hide();
+    } else if (currentState.status === '未开始' && currentState.current_step === 0) {
+        // 首次提交
+        this.wrapper.find('.btn-submit-approval').show();
+        this.wrapper.find('.btn-withdraw-approval').hide();
+    } else {
+        this.wrapper.find('.btn-submit-approval').hide();
+    }
+
+    // 撤回按钮：只有在审批中（未完成）且是提交人时显示
+    if (currentState.status === '已提交' &&
+        currentState.approval_status === '待审批' &&
+        currentState.current_step > 0) {
+        // 审批中，显示撤回按钮
+        this.wrapper.find('.btn-withdraw-approval').show();
+    } else {
+        this.wrapper.find('.btn-withdraw-approval').hide();
+    }
+
+    // 审批按钮：只有审批人在待审批状态时显示
+    if (canApprove && currentState.approval_status === '待审批') {
+        this.wrapper.find('.btn-approve').show();
+        this.wrapper.find('.btn-reject-previous').show();
+        this.wrapper.find('.btn-reject-submitter').show();
+    } else {
+        this.wrapper.find('.btn-approve').hide();
+        this.wrapper.find('.btn-reject-previous').hide();
+        this.wrapper.find('.btn-reject-submitter').hide();
+    }
+
+    // 审批历史按钮：有审批历史时显示
+    if (data.history && data.history.length > 0) {
+        this.wrapper.find('.btn-view-history').show();
+    } else {
+        this.wrapper.find('.btn-view-history').hide();
+    }
+
+    // 控制表格编辑权限
+    if (this.gridApi) {
+        const editable = canEdit && currentState.approval_status !== '待审批';
+        // 更新所有月份列的可编辑状态
+        this.months.forEach(month => {
+            const colDef = this.gridApi.getColumnDef(`month_${month}`);
+            if (colDef) {
+                colDef.editable = editable;
+            }
+        });
+        this.gridApi.refreshCells();
+    }
+
+    // 控制产品操作按钮显示
+    // 只有在未提交审批或被退回状态时才显示这些按钮
+    const showOperationButtons = (currentState.status === '未开始' && currentState.current_step === 0) ||
+                                  (currentState.approval_status === '已驳回' && canEdit);
+
+    if (showOperationButtons) {
+        // 未提交或被退回状态：显示所有操作按钮
+        this.wrapper.find('.btn-add-product').show();
+        this.wrapper.find('.btn-import-excel').show();
+        this.wrapper.find('.btn-import-mechanism').show();
+        this.wrapper.find('.btn-apply-mechanism').show();
+        // 批量删除按钮根据选中状态控制，不在这里处理
+    } else {
+        // 审批中或已通过：隐藏所有操作按钮
+        this.wrapper.find('.btn-add-product').hide();
+        this.wrapper.find('.btn-import-excel').hide();
+        this.wrapper.find('.btn-import-mechanism').hide();
+        this.wrapper.find('.btn-apply-mechanism').hide();
+        this.wrapper.find('.btn-batch-delete-inline').hide();
+    }
+};
+
+StorePlanningManager.prototype.submit_for_approval = function() {
+    const storeId = this.filter_group.get_value('store_id');
+    const taskId = this.filter_group.get_value('task_id');
+
+    if (!storeId || !taskId) {
+        frappe.msgprint('请先选择店铺和计划任务');
+        return;
+    }
+
+    frappe.prompt([
+        {
+            fieldname: 'comment',
+            label: '提交说明',
+            fieldtype: 'Small Text',
+            reqd: 0
+        }
+    ], (values) => {
+        const self = this;
+        frappe.call({
+            method: "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.submit_for_approval",
+            args: {
+                task_id: taskId,
+                store_id: storeId,
+                comment: values.comment
+            },
+            freeze: true,
+            freeze_message: "正在提交审批...",
+            callback: (r) => {
+                if (r.message && r.message.status === "success") {
+                    frappe.show_alert({
+                        message: '提交审批成功',
+                        indicator: 'green'
+                    }, 3);
+                    self.load_approval_status();
+                    self.fetch_data();
+                } else {
+                    frappe.msgprint({
+                        title: '提交失败',
+                        message: r.message?.message || "提交审批失败",
+                        indicator: 'red'
+                    });
+                }
+            },
+            error: (err) => {
+                frappe.msgprint("提交审批失败");
+                console.error("提交审批失败:", err);
+            }
+        });
+    }, '提交审批', '提交');
+};
+
+StorePlanningManager.prototype.withdraw_approval = function() {
+    const storeId = this.filter_group.get_value('store_id');
+    const taskId = this.filter_group.get_value('task_id');
+
+    if (!storeId || !taskId) {
+        frappe.msgprint('请先选择店铺和计划任务');
+        return;
+    }
+
+    frappe.confirm(
+        '确定要撤回审批吗？撤回后状态将变为未提交，可以重新编辑和提交。',
+        () => {
+            const self = this;
+            frappe.call({
+                method: "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.withdraw_approval",
+                args: {
+                    task_id: taskId,
+                    store_id: storeId,
+                    comment: "撤回审批"
+                },
+                freeze: true,
+                freeze_message: "正在撤回审批...",
+                callback: (r) => {
+                    if (r.message && r.message.status === "success") {
+                        frappe.show_alert({
+                            message: '撤回成功',
+                            indicator: 'green'
+                        }, 3);
+                        self.load_approval_status();
+                        self.fetch_data();
+                    } else {
+                        frappe.msgprint({
+                            title: '撤回失败',
+                            message: r.message?.message || "撤回审批失败",
+                            indicator: 'red'
+                        });
+                    }
+                },
+                error: (err) => {
+                    frappe.msgprint("撤回审批失败");
+                    console.error("撤回审批失败:", err);
+                }
+            });
+        }
+    );
+};
+
+StorePlanningManager.prototype.approve_task = function() {
+    const storeId = this.filter_group.get_value('store_id');
+    const taskId = this.filter_group.get_value('task_id');
+
+    if (!storeId || !taskId) {
+        frappe.msgprint('请先选择店铺和计划任务');
+        return;
+    }
+
+    frappe.prompt([
+        {
+            fieldname: 'comments',
+            label: '审批意见',
+            fieldtype: 'Small Text',
+            reqd: 0
+        }
+    ], (values) => {
+        const self = this;
+        frappe.call({
+            method: "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.approve_task_store",
+            args: {
+                task_id: taskId,
+                store_id: storeId,
+                action: 'approve',
+                comments: values.comments
+            },
+            freeze: true,
+            freeze_message: "正在审批...",
+            callback: (r) => {
+                if (r.message && r.message.status === "success") {
+                    frappe.show_alert({
+                        message: r.message.message || '审批通过',
+                        indicator: 'green'
+                    }, 3);
+                    self.load_approval_status();
+                    self.fetch_data();
+                } else {
+                    frappe.msgprint({
+                        title: '审批失败',
+                        message: r.message?.message || "审批操作失败",
+                        indicator: 'red'
+                    });
+                }
+            },
+            error: (err) => {
+                frappe.msgprint("审批操作失败");
+                console.error("审批操作失败:", err);
+            }
+        });
+    }, '审批通过', '通过');
+};
+
+StorePlanningManager.prototype.reject_to_previous = function() {
+    const storeId = this.filter_group.get_value('store_id');
+    const taskId = this.filter_group.get_value('task_id');
+
+    if (!storeId || !taskId) {
+        frappe.msgprint('请先选择店铺和计划任务');
+        return;
+    }
+
+    frappe.prompt([
+        {
+            fieldname: 'comments',
+            label: '退回原因',
+            fieldtype: 'Small Text',
+            reqd: 1
+        }
+    ], (values) => {
+        const self = this;
+        frappe.call({
+            method: "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.approve_task_store",
+            args: {
+                task_id: taskId,
+                store_id: storeId,
+                action: 'reject_to_previous',
+                comments: values.comments
+            },
+            freeze: true,
+            freeze_message: "正在退回...",
+            callback: (r) => {
+                if (r.message && r.message.status === "success") {
+                    frappe.show_alert({
+                        message: r.message.message || '已退回上一级',
+                        indicator: 'orange'
+                    }, 3);
+                    self.load_approval_status();
+                    self.fetch_data();
+                } else {
+                    frappe.msgprint({
+                        title: '退回失败',
+                        message: r.message?.message || "退回操作失败",
+                        indicator: 'red'
+                    });
+                }
+            },
+            error: (err) => {
+                frappe.msgprint("退回操作失败");
+                console.error("退回操作失败:", err);
+            }
+        });
+    }, '退回上一级', '退回');
+};
+
+StorePlanningManager.prototype.reject_to_submitter = function() {
+    const storeId = this.filter_group.get_value('store_id');
+    const taskId = this.filter_group.get_value('task_id');
+
+    if (!storeId || !taskId) {
+        frappe.msgprint('请先选择店铺和计划任务');
+        return;
+    }
+
+    frappe.prompt([
+        {
+            fieldname: 'comments',
+            label: '退回原因',
+            fieldtype: 'Small Text',
+            reqd: 1
+        }
+    ], (values) => {
+        const self = this;
+        frappe.call({
+            method: "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.approve_task_store",
+            args: {
+                task_id: taskId,
+                store_id: storeId,
+                action: 'reject_to_submitter',
+                comments: values.comments
+            },
+            freeze: true,
+            freeze_message: "正在退回...",
+            callback: (r) => {
+                if (r.message && r.message.status === "success") {
+                    frappe.show_alert({
+                        message: r.message.message || '已退回提交人',
+                        indicator: 'orange'
+                    }, 3);
+                    self.load_approval_status();
+                    self.fetch_data();
+                } else {
+                    frappe.msgprint({
+                        title: '退回失败',
+                        message: r.message?.message || "退回操作失败",
+                        indicator: 'red'
+                    });
+                }
+            },
+            error: (err) => {
+                frappe.msgprint("退回操作失败");
+                console.error("退回操作失败:", err);
+            }
+        });
+    }, '退回提交人', '退回');
+};
+
+StorePlanningManager.prototype.view_approval_history = function() {
+    const data = this.approval_data;
+
+    if (!data || !data.history || data.history.length === 0) {
+        frappe.msgprint('暂无审批历史');
+        return;
+    }
+
+    // 构建审批历史HTML
+    let historyHTML = '<div class="approval-history-timeline">';
+
+    data.history.forEach((item, index) => {
+        const actionClass = item.action === '通过' ? 'text-success' :
+                           item.action === '提交' ? 'text-primary' : 'text-danger';
+
+        historyHTML += `
+            <div class="timeline-item" style="margin-bottom: 15px; padding-left: 20px; border-left: 2px solid #ddd;">
+                <div style="margin-bottom: 5px;">
+                    <strong class="${actionClass}">${item.action}</strong>
+                    ${item.approval_step > 0 ? `<span class="text-muted">(第${item.approval_step}级)</span>` : ''}
+                </div>
+                <div style="font-size: 12px; color: #666;">
+                    <span>${item.approver || '系统'}</span>
+                    <span style="margin-left: 10px;">${frappe.datetime.str_to_user(item.action_time)}</span>
+                </div>
+                ${item.comments ? `<div style="margin-top: 5px; font-size: 13px;">${item.comments}</div>` : ''}
+            </div>
+        `;
+    });
+
+    historyHTML += '</div>';
+
+    // 显示对话框
+    frappe.msgprint({
+        title: '审批历史',
+        message: historyHTML,
+        indicator: 'blue',
+        primary_action: {
+            label: '关闭',
+            action: function() {
+                // 关闭对话框
+            }
         }
     });
 };

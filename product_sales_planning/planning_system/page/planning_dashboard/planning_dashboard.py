@@ -38,6 +38,10 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
         if filters.get("plan_type"):
             parent_filters["type"] = filters["plan_type"]
 
+        # 🔥 新增：如果指定了任务筛选，直接过滤任务
+        if filters.get("task_id"):
+            parent_filters["name"] = filters["task_id"]
+
         parents = frappe.get_all(
             "Schedule tasks",
             filters=parent_filters,
@@ -124,6 +128,9 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
                         approval_stat = item.approval_status or "待审批"
 
                         # 应用过滤器
+                        # 🔥 新增：店铺筛选
+                        if filters.get("store_id") and store_link_val != filters["store_id"]:
+                            continue
                         if filters.get("channel") and shop_channel != filters["channel"]:
                             continue
                         if filters.get("status") and sub_status != filters["status"]:
@@ -235,6 +242,21 @@ def get_filter_options():
             ORDER BY user1
         """, as_dict=True)
 
+        # 🔥 新增：获取所有店铺
+        stores = frappe.get_all(
+            "Store List",
+            fields=["name", "shop_name"],
+            order_by="shop_name asc"
+        )
+
+        # 🔥 新增：获取所有开启中的任务
+        tasks = frappe.get_all(
+            "Schedule tasks",
+            filters={"status": "开启中"},
+            fields=["name", "type", "start_date", "end_date"],
+            order_by="creation desc"
+        )
+
         return {
             "channels": [c["channel"] for c in channels],
             "users": [u["user"] for u in users],
@@ -243,7 +265,9 @@ def get_filter_options():
             "plan_types": [
                 {"value": "MON", "label": "月度常规计划"},
                 {"value": "PRO", "label": "专项促销活动"}
-            ]
+            ],
+            "stores": stores,
+            "tasks": tasks
         }
     except Exception as e:
         frappe.log_error(title="获取过滤选项失败", message=str(e))
@@ -252,5 +276,7 @@ def get_filter_options():
             "users": [],
             "statuses": [],
             "approval_statuses": [],
-            "plan_types": []
+            "plan_types": [],
+            "stores": [],
+            "tasks": []
         }

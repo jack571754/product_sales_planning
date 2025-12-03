@@ -8,7 +8,57 @@ frappe.pages['planning-dashboard'].on_page_load = function(wrapper) {
         single_column: true
     });
 
-    // 预留挂载点
+    // 添加 Frappe 原生筛选器
+    const store_field = page.add_field({
+        fieldname: 'store_id',
+        label: __('店铺'),
+        fieldtype: 'Link',
+        options: 'Store List',
+        change: function() {
+            console.log('店铺筛选器变化:', this.get_value());
+            if (wrapper.dashboard_manager) {
+                wrapper.dashboard_manager.fetch_data();
+            }
+        }
+    });
+
+    const task_field = page.add_field({
+        fieldname: 'task_id',
+        label: __('计划任务'),
+        fieldtype: 'Link',
+        options: 'Schedule tasks',
+        change: function() {
+            console.log('任务筛选器变化:', this.get_value());
+            if (wrapper.dashboard_manager) {
+                wrapper.dashboard_manager.fetch_data();
+            }
+        }
+    });
+
+    // 添加审批状态筛选器
+    const approval_status_field = page.add_field({
+        fieldname: 'approval_status',
+        label: __('审批状态'),
+        fieldtype: 'Select',
+        options: ['', '待审批', '已通过', '已驳回'],
+        change: function() {
+            console.log('审批状态筛选器变化:', this.get_value());
+            if (wrapper.dashboard_manager) {
+                wrapper.dashboard_manager.fetch_data();
+            }
+        }
+    });
+
+    // 添加"待我审批"快捷按钮
+    page.add_inner_button(__('待我审批'), function() {
+        if (wrapper.dashboard_manager) {
+            wrapper.dashboard_manager.show_my_approvals();
+        }
+    });
+
+    console.log('筛选器已添加:', { store_field, task_field, approval_status_field });
+
+    // 创建内容容器
     $(wrapper).find('.layout-main-section').html(`
         <div id="planning-dashboard-app">
             <div class="text-center p-5">
@@ -21,213 +71,225 @@ frappe.pages['planning-dashboard'].on_page_load = function(wrapper) {
     // 注入 CSS
     inject_css();
 
-    // 初始化 Vue
-    if (window.Vue) {
-        init_vue_app(wrapper, page);
-    } else {
-        frappe.require("/assets/frappe/node_modules/vue/dist/vue.global.js", function() {
-            init_vue_app(wrapper, page);
-        });
-    }
+    // 初始化管理器
+    wrapper.dashboard_manager = new DashboardManager(wrapper, page);
+    wrapper.dashboard_manager.fetch_data();
 };
 
 // 2. 页面显示（每次切换回来都会执行）
 frappe.pages['planning-dashboard'].on_page_show = function(wrapper) {
-    // 检查 Vue 实例是否存在且具备 fetchData 方法
-    if (wrapper.vue_app && wrapper.vue_app.fetchData) {
+    if (wrapper.dashboard_manager) {
         console.log("页面显示，自动刷新数据...");
-        wrapper.vue_app.fetchData();
+        wrapper.dashboard_manager.fetch_data();
     }
 };
 
 // 3. 页面卸载（清理资源）
 frappe.pages['planning-dashboard'].on_page_unload = function(wrapper) {
-    if (wrapper.vue_app && wrapper.vue_app.$destroy) {
-        wrapper.vue_app.$destroy();
+    // 清理资源
+    if (wrapper.dashboard_manager) {
+        wrapper.dashboard_manager = null;
     }
 };
 
-function init_vue_app(wrapper, page) {
-    if (!window.Vue) return;
+// 看板管理器类
+class DashboardManager {
+    constructor(wrapper, page) {
+        this.wrapper = $(wrapper);
+        this.page = page;
+        this.data = {
+            stats: { ongoing: 0, tasks_count: 0 },
+            tasks: []
+        };
+    }
 
-    const { createApp, reactive, onMounted, toRefs } = window.Vue;
+    fetch_data() {
+        const self = this;
 
-    const App = {
-        template: `
-            <div class="page-container">
-                <div class="dashboard-stats-row">
-                    <div class="stat-card">
-                        <div class="stat-icon-box box-blue" v-html="getIcon('folder', 'md')"></div>
-                        <div class="stat-content">
-                            <h4>{{ stats.ongoing || 0 }}</h4>
-                            <span>进行中计划</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon-box box-green" v-html="getIcon('check-square', 'md')"></div>
-                        <div class="stat-content">
-                            <h4>{{ stats.tasks_count || 0 }}</h4>
-                            <span>待处理店铺</span>
-                        </div>
-                    </div>
-                </div>
+        // 从 Frappe 原生筛选器获取值
+        const filters = {
+            store_id: this.page.fields_dict.store_id?.get_value() || '',
+            task_id: this.page.fields_dict.task_id?.get_value() || '',
+            approval_status: this.page.fields_dict.approval_status?.get_value() || ''
+        };
 
-                <div class="section-header">
-                    <span>执行明细列表</span>
-                    <span class="count-badge">{{ tasks.length }}</span>
-                </div>
+        // 显示加载状态
+        this.render_loading();
 
-                <div class="task-list-wrapper">
-                    
-                    <div v-if="loading" class="text-center p-5">
-                        <div class="spinner-border spinner-border-sm text-muted"></div>
-                    </div>
-
-                    <div v-else-if="tasks.length === 0" class="empty-state">
-                        <div class="empty-icon" v-html="getIcon('box', 'xl')"></div>
-                        <div class="empty-text">暂无开启中的提报任务</div>
-                    </div>
-
-                    <div v-else 
-                        v-for="task in tasks" 
-                        :key="task.row_id" 
-                        class="task-card" 
-                        @click="goToDetail(task)">
-                        
-                        <div class="card-left">
-                            <div class="store-avatar">{{ getAvatar(task.title) }}</div>
-                        </div>
-
-                        <div class="card-center">
-                            <div class="row-title">
-                                <span class="store-name">{{ task.title }}</span>
-                                <span class="channel-badge">{{ task.channel }}</span>
-                                <span v-if="task.is_urgent" class="badge-urgent">急</span>
-                            </div>
-                            <div class="row-meta">
-                                <span class="meta-item user-item">
-                                    <span v-html="getIcon('users', 'xs')"></span> {{ task.user }}
-                                </span>
-                                <span class="meta-sep">•</span>
-                                <span class="meta-item">{{ task.plan_type }}</span>
-                            </div>
-                        </div>
-
-                        <div class="card-right">
-                            <div class="row-time">
-                                <span :style="getTimeStyle(task.is_urgent)">
-                                    <span v-html="getIcon('calendar', 'xs')"></span> 截止 {{ task.deadline }}
-                                </span>
-                            </div>
-                            <div class="row-status">
-                                <span v-html="getStatusBadgeHTML(task.child_status, 'sub')"></span>
-                                <span v-html="getStatusBadgeHTML(task.approval_status, 'app')"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        `,
-        setup() {
-            const state = reactive({
-                stats: { ongoing: 0, tasks_count: 0 },
-                tasks: [],
-                loading: false
-            });
-
-            const fetchData = () => {
-                state.loading = true;
-                frappe.call({
-                    method: "product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data",
-                    callback: function(r) {
-                        state.loading = false;
-                        if (r.message) {
-                            // 检查是否有错误
-                            if (r.message.error) {
-                                frappe.msgprint({
-                                    title: '加载失败',
-                                    message: r.message.error,
-                                    indicator: 'red'
-                                });
-                                state.stats = { ongoing: 0, tasks_count: 0 };
-                                state.tasks = [];
-                                return;
-                            }
-
-                            state.stats = r.message.stats || { ongoing: 0, tasks_count: 0 };
-                            state.tasks = r.message.tasks || [];
-                            state.stats.tasks_count = state.tasks.length;
-                        } else {
-                            // 没有返回数据
-                            state.stats = { ongoing: 0, tasks_count: 0 };
-                            state.tasks = [];
-                        }
-                    },
-                    error: function(err) {
-                        state.loading = false;
-                        console.error('获取看板数据失败:', err);
+        frappe.call({
+            method: "product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data",
+            args: { filters: filters },
+            callback: function(r) {
+                if (r.message) {
+                    if (r.message.error) {
                         frappe.msgprint({
                             title: '加载失败',
-                            message: '无法加载看板数据，请稍后重试',
+                            message: r.message.error,
                             indicator: 'red'
                         });
-                        state.stats = { ongoing: 0, tasks_count: 0 };
-                        state.tasks = [];
+                        self.data = { stats: { ongoing: 0, tasks_count: 0 }, tasks: [] };
+                    } else {
+                        self.data.stats = r.message.stats || { ongoing: 0, tasks_count: 0 };
+                        self.data.tasks = r.message.tasks || [];
+                        self.data.stats.tasks_count = self.data.tasks.length;
                     }
+                } else {
+                    self.data = { stats: { ongoing: 0, tasks_count: 0 }, tasks: [] };
+                }
+                self.render();
+            },
+            error: function(err) {
+                console.error('获取看板数据失败:', err);
+                frappe.msgprint({
+                    title: '加载失败',
+                    message: '无法加载看板数据，请稍后重试',
+                    indicator: 'red'
                 });
-            };
+                self.data = { stats: { ongoing: 0, tasks_count: 0 }, tasks: [] };
+                self.render();
+            }
+        });
+    }
 
-            const goToDetail = (task) => {
-                // 修复：只传递 store_id 和 task_id (parent_id)，移除多余的 deadline 参数
-                frappe.set_route('store-detail', task.store_id, task.parent_id);
-            };
+    render_loading() {
+        this.wrapper.find('#planning-dashboard-app').html(`
+            <div class="text-center p-5">
+                <div class="spinner-border spinner-border-sm text-muted"></div>
+                <div class="mt-2 text-muted">加载中...</div>
+            </div>
+        `);
+    }
 
-            // 辅助函数
-            const getIcon = (iconName, size) => frappe.utils.icon(iconName, size || 'sm');
-            const getAvatar = (title) => title ? title.charAt(0) : '店';
-            const getTimeStyle = (isUrgent) => isUrgent ? 'color:#FA5252; font-weight:bold;' : 'color:#868E96;';
-            
-            const getStatusBadgeHTML = (status, type) => {
-                if (!status || status === '-' || status === '未开始') {
-                    if (type === 'app') return ''; 
-                    return `<span class="status-pill st-gray">未开始</span>`;
-                }
-                let cls = 'st-gray';
-                const s = status.toString();
-                if (type === 'sub') {
-                    if (['已提交', 'Submitted'].some(k => s.includes(k))) cls = 'st-blue';
-                    else if (['草稿', 'Draft'].some(k => s.includes(k))) cls = 'st-orange';
-                }
-                if (type === 'app') {
-                    if (['通过', 'Approved'].some(k => s.includes(k))) cls = 'st-green';
-                    else if (['驳回', 'Rejected'].some(k => s.includes(k))) cls = 'st-red';
-                    else if (['审核', 'Pending'].some(k => s.includes(k))) cls = 'st-yellow';
-                }
-                return `<span class="status-pill ${cls}">${status}</span>`;
-            };
+    render() {
+        const self = this;
+        const { stats, tasks } = this.data;
 
-            onMounted(() => {
-                fetchData();
-            });
+        // 构建统计卡片 HTML
+        const statsHTML = `
+            <div class="dashboard-stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon-box box-blue">${frappe.utils.icon('folder', 'md')}</div>
+                    <div class="stat-content">
+                        <h4>${stats.ongoing || 0}</h4>
+                        <span>进行中计划</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon-box box-green">${frappe.utils.icon('check-square', 'md')}</div>
+                    <div class="stat-content">
+                        <h4>${stats.tasks_count || 0}</h4>
+                        <span>待处理店铺</span>
+                    </div>
+                </div>
+            </div>
+        `;
 
-            page.set_secondary_action('刷新数据', fetchData, 'refresh');
-
-            return {
-                ...toRefs(state),
-                getIcon,
-                getAvatar,
-                getTimeStyle,
-                getStatusBadgeHTML,
-                goToDetail,
-                fetchData // <--- 关键：必须返回这个方法，on_page_show 才能调用
-            };
+        // 构建任务列表 HTML
+        let tasksHTML = '';
+        if (tasks.length === 0) {
+            tasksHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">${frappe.utils.icon('box', 'xl')}</div>
+                    <div class="empty-text">暂无开启中的提报任务</div>
+                </div>
+            `;
+        } else {
+            tasksHTML = tasks.map(task => `
+                <div class="task-card" data-store-id="${task.store_id}" data-parent-id="${task.parent_id}">
+                    <div class="card-left">
+                        <div class="store-avatar">${this.get_avatar(task.title)}</div>
+                    </div>
+                    <div class="card-center">
+                        <div class="row-title">
+                            <span class="store-name">${task.title}</span>
+                            <span class="channel-badge">${task.channel}</span>
+                            ${task.is_urgent ? '<span class="badge-urgent">急</span>' : ''}
+                        </div>
+                        <div class="row-meta">
+                            <span class="meta-item user-item">
+                                ${frappe.utils.icon('users', 'xs')} ${task.user}
+                            </span>
+                            <span class="meta-sep">•</span>
+                            <span class="meta-item">${task.plan_type}</span>
+                        </div>
+                    </div>
+                    <div class="card-right">
+                        <div class="row-time">
+                            <span style="${this.get_time_style(task.is_urgent)}">
+                                ${frappe.utils.icon('calendar', 'xs')} 截止 ${task.deadline}
+                            </span>
+                        </div>
+                        <div class="row-status">
+                            ${this.get_status_badge_html(task.child_status, 'sub')}
+                            ${this.get_status_badge_html(task.approval_status, 'app')}
+                            ${task.current_approval_step > 0 ? `<span class="status-pill st-blue">第${task.current_approval_step}级</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
         }
-    };
 
-    const app = createApp(App);
-    // 关键：将挂载后的 Vue 实例保存到 wrapper 上
-    wrapper.vue_app = app.mount($(wrapper).find('#planning-dashboard-app')[0]);
+        // 渲染完整页面
+        this.wrapper.find('#planning-dashboard-app').html(`
+            <div class="page-container">
+                ${statsHTML}
+                <div class="section-header">
+                    <span>执行明细列表</span>
+                    <span class="count-badge">${tasks.length}</span>
+                </div>
+                <div class="task-list-wrapper">
+                    ${tasksHTML}
+                </div>
+            </div>
+        `);
+
+        // 绑定点击事件
+        this.wrapper.find('.task-card').on('click', function() {
+            const storeId = $(this).data('store-id');
+            const parentId = $(this).data('parent-id');
+            frappe.set_route('store-detail', storeId, parentId);
+        });
+
+        // 设置刷新按钮
+        this.page.set_secondary_action('刷新数据', () => this.fetch_data(), 'refresh');
+    }
+
+    get_avatar(title) {
+        return title ? title.charAt(0) : '店';
+    }
+
+    get_time_style(isUrgent) {
+        return isUrgent ? 'color:#FA5252; font-weight:bold;' : 'color:#868E96;';
+    }
+
+    get_status_badge_html(status, type) {
+        if (!status || status === '-' || status === '未开始') {
+            if (type === 'app') return '';
+            return `<span class="status-pill st-gray">未开始</span>`;
+        }
+        let cls = 'st-gray';
+        const s = status.toString();
+        if (type === 'sub') {
+            if (['已提交', 'Submitted'].some(k => s.includes(k))) cls = 'st-blue';
+            else if (['草稿', 'Draft'].some(k => s.includes(k))) cls = 'st-orange';
+        }
+        if (type === 'app') {
+            if (['通过', 'Approved'].some(k => s.includes(k))) cls = 'st-green';
+            else if (['驳回', 'Rejected'].some(k => s.includes(k))) cls = 'st-red';
+            else if (['审核', 'Pending'].some(k => s.includes(k))) cls = 'st-yellow';
+        }
+        return `<span class="status-pill ${cls}">${status}</span>`;
+    }
+
+    show_my_approvals() {
+        // 设置审批状态筛选器为"待审批"
+        this.page.fields_dict.approval_status.set_value('待审批');
+        // 清空其他筛选器
+        this.page.fields_dict.store_id.set_value('');
+        this.page.fields_dict.task_id.set_value('');
+        // 刷新数据
+        this.fetch_data();
+    }
 }
 
 function inject_css() {
