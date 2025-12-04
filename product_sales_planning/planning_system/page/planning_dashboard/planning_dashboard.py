@@ -20,6 +20,9 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
         elif filters is None:
             filters = {}
 
+        # 提取 tab 参数
+        current_tab = filters.pop('tab', 'pending') if isinstance(filters, dict) else 'pending'
+
         # 1. 基础统计
         stats = {
             "ongoing": frappe.db.count("Schedule tasks", {"status": "开启中"}),
@@ -32,14 +35,22 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
         stats["submitted_count"] = 0
         stats["approved_count"] = 0
         stats["rejected_count"] = 0
+        stats["pending_count"] = 0
+        stats["completed_count"] = 0
 
         # 2. 构建父任务过滤条件
         parent_filters = {"status": "开启中"}
         if filters.get("plan_type"):
             parent_filters["type"] = filters["plan_type"]
 
-        # 🔥 新增：如果指定了任务筛选，直接过滤任务
-        if filters.get("task_id"):
+        # 🔥 新增：如果指定了任务筛选，直接过滤任务（支持多选）
+        if filters.get("task_ids"):
+            task_ids = filters["task_ids"]
+            if isinstance(task_ids, str):
+                task_ids = json.loads(task_ids)
+            if task_ids and len(task_ids) > 0:
+                parent_filters["name"] = ["in", task_ids]
+        elif filters.get("task_id"):
             parent_filters["name"] = filters["task_id"]
 
         parents = frappe.get_all(
@@ -127,9 +138,25 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
                         sub_status = item.status or "未开始"
                         approval_stat = item.approval_status or "待审批"
 
-                        # 应用过滤器
-                        # 🔥 新增：店铺筛选
-                        if filters.get("store_id") and store_link_val != filters["store_id"]:
+                        # 应用 Tab 筛选（基于审批状态）
+                        if current_tab == 'completed':
+                            # 已完成 tab：只显示已通过的任务
+                            if approval_stat != '已通过':
+                                continue
+                        elif current_tab == 'pending':
+                            # 待完成 tab：显示待审批和已驳回的任务
+                            if approval_stat == '已通过':
+                                continue
+
+                        # 应用其他过滤器
+                        # 🔥 新增：店铺筛选（支持多选）
+                        if filters.get("store_ids"):
+                            store_ids = filters["store_ids"]
+                            if isinstance(store_ids, str):
+                                store_ids = json.loads(store_ids)
+                            if store_ids and len(store_ids) > 0 and store_link_val not in store_ids:
+                                continue
+                        elif filters.get("store_id") and store_link_val != filters["store_id"]:
                             continue
                         if filters.get("channel") and shop_channel != filters["channel"]:
                             continue
@@ -185,8 +212,13 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
                             stats["submitted_count"] += 1
                         if approval_stat == "已通过":
                             stats["approved_count"] += 1
+                            stats["completed_count"] += 1
                         elif approval_stat == "已驳回":
                             stats["rejected_count"] += 1
+                            stats["pending_count"] += 1
+                        else:
+                            # 待审批
+                            stats["pending_count"] += 1
 
             except Exception as e:
                 frappe.log_error(f"处理任务失败: {p.name}", str(e))

@@ -44,12 +44,12 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
             }
 
             .filter-card {
-                background: var(--card-bg);
+                background: var(--app-card-bg, #ffffff);
                 padding: 12px 15px;
-                border-radius: 6px;
-                border: 1px solid var(--border-color);
+                border-radius: var(--app-border-radius-md, 8px);
+                border: 1px solid var(--app-border-color, #e3e6ea);
                 margin-bottom: 10px;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                box-shadow: var(--app-shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
             }
             .filter-card .row {
                 align-items: flex-end;
@@ -90,26 +90,48 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
                 margin-bottom: 0;
             }
             .stat-card {
-                padding: 12px 15px;
-                background: linear-gradient(135deg, var(--card-bg) 0%, #f8f9fa 100%);
-                border-radius: 6px;
-                border: 1px solid var(--border-color);
-                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                padding: 16px;
+                background: var(--app-card-bg, #ffffff);
+                border-radius: var(--app-border-radius-md, 8px);
+                border: 1px solid var(--app-border-color, #e3e6ea);
+                box-shadow: var(--app-shadow-md, 0 1px 3px rgba(0,0,0,0.05));
+                display: flex;
+                align-items: center;
             }
-            .stat-label {
-                font-size: 11px;
-                color: var(--text-muted);
-                margin-bottom: 4px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
+            .stat-icon-box {
+                width: var(--app-stat-icon-size, 48px);
+                height: var(--app-stat-icon-size, 48px);
+                border-radius: var(--app-border-radius-md, 8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-right: 12px;
             }
-            .stat-number {
-                font-size: 20px;
-                font-weight: bold;
+            .stat-icon-box svg {
+                width: 22px;
+                height: 22px;
+            }
+            .box-blue { background: #e8f4fd; color: #2c7be5; }
+            .box-green { background: #e8f8f0; color: #00ba88; }
+            .stat-content h4 {
+                font-size: var(--app-stat-number-size, 24px);
+                margin: 0;
+                font-weight: var(--app-stat-number-weight, 700);
+                color: var(--app-text-dark, #111314);
                 line-height: 1.2;
+            }
+            .stat-content span {
+                color: var(--app-text-muted, #6c757d);
+                font-size: 12px;
+                font-weight: 500;
             }
             .text-primary { color: #4472C4; }
             .text-success { color: #28a745; }
+
+            /* AG Grid 统一字体颜色 */
+            .ag-theme-alpine .ag-cell {
+                color: var(--app-text-dark, #111314) !important;
+            }
             .btn-search {
                 margin-bottom: 10px;
             }
@@ -353,12 +375,18 @@ class StorePlanningManager {
                     <!-- 统计信息 -->
                     <div class="stats-grid">
                         <div class="stat-card">
-                            <div class="stat-label">总计划量</div>
-                            <div class="stat-number text-primary" id="stat-total">0</div>
+                            <div class="stat-icon-box box-blue">${frappe.utils.icon('package', 'md')}</div>
+                            <div class="stat-content">
+                                <h4 id="stat-total">0</h4>
+                                <span>总计划量</span>
+                            </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-label">已规划SKU</div>
-                            <div class="stat-number text-success" id="stat-count">0 / 0</div>
+                            <div class="stat-icon-box box-green">${frappe.utils.icon('check-square', 'md')}</div>
+                            <div class="stat-content">
+                                <h4 id="stat-count">0 / 0</h4>
+                                <span>已规划SKU</span>
+                            </div>
                         </div>
                     </div>
 

@@ -33,7 +33,11 @@ api_methods = [
     "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.get_approval_history",
     "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.get_workflow_for_task_store",
     "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.check_can_edit",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.get_approval_status"
+    "product_sales_planning.planning_system.page.store_detail.store_detail.get_approval_status",
+    # Data view APIs
+    "product_sales_planning.planning_system.page.data_view.data_view.get_data_view",
+    "product_sales_planning.planning_system.page.data_view.data_view.get_data_view_filter_options",
+    "product_sales_planning.planning_system.page.data_view.data_view.export_data_view"
 ]
 
 
@@ -54,7 +58,7 @@ api_methods = [
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/product_sales_planning/css/product_sales_planning.css"
+app_include_css = "/assets/product_sales_planning/css/common-styles.css"
 # app_include_js = "/assets/product_sales_planning/js/product_sales_planning.js"
 
 # include js, css files in header of web template
