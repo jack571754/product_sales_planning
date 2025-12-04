@@ -408,3 +408,4 @@ product_sales_planning/
   - **CI workflow**: Runs tests on every push to `develop` branch
   - **Linters workflow**: Runs Frappe Semgrep rules and pip-audit on pull requests
 - Pre-commit hooks run automatically before each commit (ruff, eslint, prettier, pyupgrade)
+- 清除待办事项，从新的指令开始

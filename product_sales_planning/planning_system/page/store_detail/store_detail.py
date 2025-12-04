@@ -641,7 +641,8 @@ def apply_mechanisms(store_id, mechanism_names, task_id=None):
 
         return {
             "status": "success",
-            "count": inserted_count,
+            "inserted_count": inserted_count,
+            "skipped_count": skipped_count,
             "skipped": skipped_count,
             "errors": errors[:10],
             "msg": msg
@@ -723,17 +724,17 @@ def update_month_quantity(store_id, task_id, code, month, quantity):
 
 
 @frappe.whitelist()
-def download_import_template(task_id=None):
+def download_import_template(store_id=None, task_id=None):
     """
-    生成并下载Excel导入模板
+    生成并下载Excel导入模板（直接下载，不返回JSON）
 
     Args:
-        task_id: 任务ID（可选，用于获取任务的月份范围）
+        store_id: 店铺ID（可选）
+        task_id: 任务ID（可选）
     """
     try:
         import openpyxl
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from frappe.utils.file_manager import save_file
         import io
         from datetime import datetime
         from dateutil.relativedelta import relativedelta
@@ -753,7 +754,7 @@ def download_import_template(task_id=None):
             bottom=Side(style='thin')
         )
 
-        # 🔥 修改：生成月份列（不含当前月的未来4个月）
+        # 生成月份列（未来4个月）
         current_date = datetime.now()
         months = []
         for i in range(1, 5):  # 从下个月开始，共4个月
@@ -831,29 +832,19 @@ def download_import_template(task_id=None):
         wb.save(file_content)
         file_content.seek(0)
 
-        # 生成文件名 - 使用英文避免编码问题
+        # 生成文件名
         filename = f"commodity_plan_import_template_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
-        # 🔥 修复：保存文件时不指定 dt 和 dn，避免"附加名称必须是字符串或整数类型"错误
-        file_doc = save_file(
-            fname=filename,
-            content=file_content.read(),
-            dt=None,
-            dn=None,
-            is_private=0
-        )
-
-        return {
-            "status": "success",
-            "file_url": file_doc.file_url,
-            "file_name": filename
-        }
+        # 直接返回文件下载
+        frappe.response['filename'] = filename
+        frappe.response['filecontent'] = file_content.getvalue()
+        frappe.response['type'] = 'download'
 
     except Exception as e:
         import traceback
         error_msg = traceback.format_exc()
         frappe.log_error(title="生成导入模板失败", message=error_msg)
-        return {"status": "error", "msg": f"生成模板失败: {str(e)}"}
+        frappe.throw(f"生成模板失败: {str(e)}")
 
 
 @frappe.whitelist()
