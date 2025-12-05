@@ -8,34 +8,27 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
         single_column: true
     });
 
-    // 预留 DOM 挂载点
+    // 预留 DOM 挂载点 (移除加载动画,直接显示空白)
     $(wrapper).find('.layout-main-section').html(`
         <div id="store-detail-app" style="min-height: 600px;">
-            <div class="text-center p-5 text-muted">
-                <div class="spinner-border text-primary" role="status"></div>
-                <div class="mt-2">正在加载资源...</div>
-            </div>
+            <!-- 无加载动画,直接初始化 -->
         </div>
     `);
 
     // 样式注入（优先加载，确保只执行一次）
     if (!document.getElementById('store-detail-css')) {
         $('<style>').attr('id', 'store-detail-css').text(`
-            /* 固定筛选器区域 */
+            /* 可滚动的主容器 */
             .store-planning-body {
                 padding: 10px;
                 max-width: 100%;
                 margin: 0 auto;
-                display: flex;
-                flex-direction: column;
-                height: calc(100vh - 100px);
+                min-height: 100vh;
             }
 
             /* 固定头部区域（操作栏 + 筛选器 + 统计卡片） */
             .fixed-header-area {
-                position: sticky;
-                top: 0;
-                z-index: 100;
+                flex-shrink: 0;
                 background: var(--bg-color, #fff);
                 padding-bottom: 10px;
                 border-bottom: 2px solid var(--border-color);
@@ -54,19 +47,16 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
                 align-items: flex-end;
             }
 
-            /* AG Grid 表格容器样式 */
+            /* 表格容器样式 */
             .datatable-container {
-                flex: 1;
                 background: #fff;
                 border-radius: 6px;
                 box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-                overflow: hidden;
-                min-height: 400px;
+                overflow: visible;
             }
 
-            #ag-grid-container {
+            #handsontable-container {
                 width: 100%;
-                height: 100%;
             }
 
             /* 操作按钮样式 */
@@ -140,7 +130,60 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
 
             /* 列设置样式 */
             .column-settings-section {
+                flex-shrink: 0;
+                margin-bottom: 10px;
+            }
+
+            /* Handsontable 容器 */
+            .handsontable-container {
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                overflow: hidden;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 margin-bottom: 20px;
+            }
+
+            /* 分页器样式 */
+            .pagination-controls {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 15px 20px;
+                background: #f9fafb;
+                border-top: 1px solid #e5e7eb;
+                border-radius: 0 0 6px 6px;
+                margin-top: -1px;
+            }
+
+            .pagination-info {
+                font-size: 14px;
+                color: #6b7280;
+            }
+
+            .pagination-buttons {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+
+            .pagination-buttons .btn {
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+
+            .pagination-buttons input {
+                width: 60px;
+                text-align: center;
+                padding: 6px;
+                border: 1px solid #d1d5db;
+                border-radius: 4px;
+            }
+
+            .pagination-buttons select {
+                padding: 6px 10px;
+                border: 1px solid #d1d5db;
+                border-radius: 4px;
+                background: white;
             }
             .column-settings-card {
                 background: #fff;
@@ -296,6 +339,7 @@ class StorePlanningManager {
         this.months = [];
         this.checked_rows = new Set();
         this.view_mode = 'multi';  // 固定使用多月视图
+        
 
         // 程序锁：防止 set_value 触发 change 事件导致死循环
         this.is_programmatic_update = false;
@@ -327,9 +371,6 @@ class StorePlanningManager {
                         <div class="action-buttons">
                             <button class="btn btn-sm btn-secondary btn-return">
                                 <span class="fa fa-arrow-left"></span> 返回
-                            </button>
-                            <button class="btn btn-sm btn-success btn-export-excel">
-                                <span class="fa fa-download"></span> 导出Excel
                             </button>
                             <button class="btn btn-sm btn-danger btn-batch-delete-inline" style="display: none;">
                                 <span class="fa fa-trash"></span> 批量删除
@@ -423,6 +464,9 @@ class StorePlanningManager {
                                 <button class="btn btn-sm btn-default btn-toggle-column-settings">
                                     <i class="fa fa-cog"></i> 管理列
                                 </button>
+                                <button class="btn btn-sm btn-success btn-export-excel">
+                                    <span class="fa fa-download"></span> 导出Excel
+                                </button>
                             </div>
                         </div>
                         <div id="column-checkboxes" class="column-checkboxes"></div>
@@ -430,9 +474,11 @@ class StorePlanningManager {
                 </div>
 
                 <!-- 表格容器（可滚动） -->
-                <div class="handsontable-container" style="border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div class="handsontable-container">
                     <div id="datatable-container" class="datatable-container"></div>
-                    <div class="pagination-section" style="display: flex; justify-content: flex-end; align-items: center; padding: 12px 16px; background: #f9fafb; border-top: 1px solid #e5e7eb;">
+
+                    <!-- 分页器 -->
+                    <div class="pagination-controls" style="display: flex; justify-content: flex-end; align-items: center; padding: 12px 16px; background: #f9fafb; border-top: 1px solid #e5e7eb;">
                         <div class="pagination-info-left" style="display: flex; align-items: center; gap: 16px; font-size: 13px; color: #6b7280; margin-right: auto;">
                             <span style="display: flex; align-items: center; gap: 6px;">
                                 共 <strong id="total-records" style="color: #111827; font-weight: 600;">0</strong> 条记录
@@ -441,24 +487,32 @@ class StorePlanningManager {
                             <span style="display: flex; align-items: center; gap: 6px;">
                                 每页
                                 <select class="form-control input-xs" id="page-size-selector" style="display: inline-block; width: 75px; height: 32px; padding: 4px 8px; font-size: 13px; border: 1px solid #d1d5db; border-radius: 6px; margin: 0; vertical-align: middle; background: #fff; cursor: pointer;">
-                                    <option value="20">20</option>
-                                    <option value="50" selected>50</option>
+                                    <option value="20" selected>20</option>
+                                    <option value="50">50</option>
                                     <option value="100">100</option>
                                     <option value="200">200</option>
                                 </select>
                                 条
                             </span>
                         </div>
-                        <div class="pagination-controls" style="display: flex; align-items: center; gap: 8px;">
+                        <div class="pagination-buttons" style="display: flex; align-items: center; gap: 8px;">
                             <span class="pagination-page-info" style="font-size: 13px; color: #6b7280; margin-right: 12px;">
                                 第 <strong id="current-page" style="color: #111827; font-weight: 600;">1</strong> / <strong id="total-pages" style="color: #111827; font-weight: 600;">1</strong> 页
                             </span>
-                            <button class="btn btn-xs btn-default btn-first-page" title="首页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;"><i class="fa fa-angle-double-left"></i></button>
-                            <button class="btn btn-xs btn-default btn-prev-page" title="上一页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;"><i class="fa fa-angle-left"></i></button>
+                            <button class="btn btn-xs btn-default btn-first-page" title="首页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+                                <i class="fa fa-angle-double-left"></i>
+                            </button>
+                            <button class="btn btn-xs btn-default btn-prev-page" title="上一页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+                                <i class="fa fa-angle-left"></i>
+                            </button>
                             <input type="number" class="form-control input-xs" id="goto-page-input" min="1" placeholder="页码" style="width: 70px; height: 32px; padding: 4px 8px; font-size: 13px; text-align: center; border: 1px solid #d1d5db; border-radius: 6px;">
                             <button class="btn btn-xs btn-primary btn-goto-page" style="padding: 6px 14px; border-radius: 6px; font-size: 13px; height: 32px;">跳转</button>
-                            <button class="btn btn-xs btn-default btn-next-page" title="下一页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;"><i class="fa fa-angle-right"></i></button>
-                            <button class="btn btn-xs btn-default btn-last-page" title="末页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;"><i class="fa fa-angle-double-right"></i></button>
+                            <button class="btn btn-xs btn-default btn-next-page" title="下一页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+                                <i class="fa fa-angle-right"></i>
+                            </button>
+                            <button class="btn btn-xs btn-default btn-last-page" title="末页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+                                <i class="fa fa-angle-double-right"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -706,8 +760,8 @@ class StorePlanningManager {
                 page_length: 2000, // 大数据量一次拉取
                 view_mode: this.view_mode
             },
-            freeze: true,
-            freeze_message: "加载数据...",
+            freeze: false,  // 不显示加载动画
+            async: true,    // 异步加载，不阻塞UI
             callback: (r) => {
                 if (r.message && !r.message.error) {
                     this.data = r.message.data || [];
@@ -764,14 +818,8 @@ class StorePlanningManager {
             return;
         }
 
-        // 只创建Handsontable容器，不创建分页（分页已在init_ui中创建）
-        // 使用固定高度确保分页器可见
-        container.innerHTML = `
-            <div id="handsontable-container" style="width: 100%; height: 500px; overflow: auto;"></div>
-        `;
-
-        // 创建 Handsontable 容器引用
-        const hotContainer = container.querySelector('#handsontable-container');
+        // 清空容器并创建 Handsontable 容器
+        container.innerHTML = '';
 
         // 准备表头（移除 # 列，使用 rowHeaders 代替）
         const headers = ['商品名称', '编码', '规格', '品牌', '类别'];
@@ -784,7 +832,7 @@ class StorePlanningManager {
                 readOnly: true,
                 width: 250,
                 className: 'htLeft htMiddle',
-                renderer: function(instance, td, row, col, prop, value, cellProperties) {
+                renderer: function(_instance, td, _row, _col, _prop, value, _cellProperties) {
                     // 自定义渲染器：不换行，文本溢出显示省略号
                     td.style.whiteSpace = 'nowrap';
                     td.style.overflow = 'hidden';
@@ -830,7 +878,7 @@ class StorePlanningManager {
         });
 
         // 分页配置
-        this.pageSize = 50;
+        this.pageSize = 20;
         this.currentPage = 1;
         this.hotData = hotData;
 
@@ -841,18 +889,18 @@ class StorePlanningManager {
             return this.hotData.slice(start, end);
         };
 
-        // 清空容器
-        hotContainer.innerHTML = '';
+        // 使用固定表格高度，参照 data_view.js 的设置
+        const currentPageData = getPageData(this.currentPage);
+        const tableHeight = 500; // 固定高度 600px，避免动态高度导致的布局问题
 
-        // 创建 Handsontable 实例
-        const self = this;
-        this.hot = new Handsontable(hotContainer, {
-            data: getPageData(this.currentPage),
+        // 创建 Handsontable 实例（参照 data_view.js 的配置）
+        this.hot = new Handsontable(container, {
+            data: currentPageData,
             colHeaders: colHeaders,
             columns: hotColumns,
             rowHeaders: true,  // 使用内置行号
             width: '100%',
-            height: '100%',
+            height: tableHeight,  // 固定高度 600px
             licenseKey: 'non-commercial-and-evaluation',
             stretchH: 'all',
             autoWrapRow: false,  // 禁用自动换行
@@ -861,6 +909,13 @@ class StorePlanningManager {
             manualColumnResize: true,
             manualRowMove: false,
             manualColumnMove: false,
+
+            // 新增配置项（参照 data_view.js）
+            fixedColumnsLeft: 2,           // 固定左侧2列（商品名称和编码），横向滚动时保持可见
+            renderAllRows: false,          // 优化渲染性能，只渲染可见行
+            selectionMode: 'multiple',     // 支持多选模式
+            language: 'zh-CN',             // 中文语言设置
+            wordWrap: false,               // 禁用自动换行，保持表格整洁
 
             // 右键菜单配置
             contextMenu: {
@@ -940,39 +995,10 @@ class StorePlanningManager {
         // 初始化列设置器
         this.init_column_checkboxes();
 
-        // 重新绑定分页按钮事件（因为HTML是动态生成的）
-        this.bind_pagination_events();
-
         // 渲染分页控件
         this.renderPagination();
     }
 
-    bind_pagination_events() {
-
-        // 绑定分页按钮事件
-        this.wrapper.find('.btn-first-page').off('click').on('click', () => this.goto_page(1));
-        this.wrapper.find('.btn-prev-page').off('click').on('click', () => this.goto_page(this.currentPage - 1));
-        this.wrapper.find('.btn-next-page').off('click').on('click', () => this.goto_page(this.currentPage + 1));
-        this.wrapper.find('.btn-last-page').off('click').on('click', () => {
-            const totalPages = Math.ceil(this.hotData.length / this.pageSize);
-            this.goto_page(totalPages);
-        });
-        this.wrapper.find('.btn-goto-page').off('click').on('click', () => {
-            const page = parseInt(this.wrapper.find('#goto-page-input').val());
-            if (page && page > 0) this.goto_page(page);
-        });
-        this.wrapper.find('#goto-page-input').off('keypress').on('keypress', (e) => {
-            if (e.which === 13) { // Enter键
-                const page = parseInt(this.wrapper.find('#goto-page-input').val());
-                if (page && page > 0) this.goto_page(page);
-            }
-        });
-        this.wrapper.find('#page-size-selector').off('change').on('change', (e) => {
-            this.pageSize = parseInt($(e.target).val());
-            this.currentPage = 1;
-            this.updateTableData();
-        });
-    }
 
     renderPagination() {
         const totalPages = Math.ceil(this.hotData.length / this.pageSize) || 1;
@@ -1007,12 +1033,11 @@ class StorePlanningManager {
         const pageData = this.hotData.slice(start, end);
 
         if (this.hot) {
+            // 只更新数据，不调整高度（保持固定高度 600px）
             this.hot.loadData(pageData);
             this.renderPagination();
         }
     }
-
-    // 旧的HTML表格渲染方法已被AG Grid替代
 
     handle_batch_delete() {
         const codes = Array.from(this.checked_rows);
@@ -1677,17 +1702,25 @@ StorePlanningManager.prototype.update_approval_ui = function() {
         this.wrapper.find('.btn-view-history').hide();
     }
 
-    // 控制表格编辑权限
-    if (this.gridApi) {
-        const editable = canEdit && currentState.approval_status !== '待审批';
-        // 更新所有月份列的可编辑状态
-        this.months.forEach(month => {
-            const colDef = this.gridApi.getColumnDef(`month_${month}`);
-            if (colDef) {
-                colDef.editable = editable;
+    // 控制表格编辑权限（Handsontable）
+    if (this.hot) {
+        // 只有在未提交或被退回状态时才允许编辑
+        const editable = (currentState.status === '未开始' && currentState.current_step === 0) ||
+                        (currentState.approval_status === '已驳回' && canEdit);
+
+        console.log('🔒 表格编辑权限:', { editable, status: currentState.status, approval_status: currentState.approval_status });
+
+        // 更新所有月份列的 readOnly 属性
+        const columns = this.hot.getSettings().columns;
+        this.months.forEach((_month, index) => {
+            const colIndex = 5 + index; // 前5列是固定列（商品名称、编码、规格、品牌、类别）
+            if (columns[colIndex]) {
+                columns[colIndex].readOnly = !editable;
             }
         });
-        this.gridApi.refreshCells();
+
+        this.hot.updateSettings({ columns: columns });
+        this.hot.render();
     }
 
     // 控制产品操作按钮显示
@@ -1757,8 +1790,10 @@ StorePlanningManager.prototype.submit_for_approval = function() {
                         message: '提交审批成功',
                         indicator: 'green'
                     }, 3);
-                    self.load_approval_status();
-                    self.fetch_data();
+                    const currentStoreId = self.filter_group.get_value('store_id');
+                    const currentTaskId = self.filter_group.get_value('task_id');
+                    self.load_approval_status(currentStoreId, currentTaskId);
+                    self.fetch_data({ storeId: currentStoreId, taskId: currentTaskId });
                 } else {
                     frappe.msgprint({
                         title: '提交失败',
@@ -1803,8 +1838,10 @@ StorePlanningManager.prototype.withdraw_approval = function() {
                             message: '撤回成功',
                             indicator: 'green'
                         }, 3);
-                        self.load_approval_status();
-                        self.fetch_data();
+                        const currentStoreId = self.filter_group.get_value('store_id');
+                        const currentTaskId = self.filter_group.get_value('task_id');
+                        self.load_approval_status(currentStoreId, currentTaskId);
+                        self.fetch_data({ storeId: currentStoreId, taskId: currentTaskId });
                     } else {
                         frappe.msgprint({
                             title: '撤回失败',
@@ -1856,8 +1893,10 @@ StorePlanningManager.prototype.approve_task = function() {
                         message: r.message.message || '审批通过',
                         indicator: 'green'
                     }, 3);
-                    self.load_approval_status();
-                    self.fetch_data();
+                    const currentStoreId = self.filter_group.get_value('store_id');
+                    const currentTaskId = self.filter_group.get_value('task_id');
+                    self.load_approval_status(currentStoreId, currentTaskId);
+                    self.fetch_data({ storeId: currentStoreId, taskId: currentTaskId });
                 } else {
                     frappe.msgprint({
                         title: '审批失败',
@@ -1908,8 +1947,10 @@ StorePlanningManager.prototype.reject_to_previous = function() {
                         message: r.message.message || '已退回上一级',
                         indicator: 'orange'
                     }, 3);
-                    self.load_approval_status();
-                    self.fetch_data();
+                    const currentStoreId = self.filter_group.get_value('store_id');
+                    const currentTaskId = self.filter_group.get_value('task_id');
+                    self.load_approval_status(currentStoreId, currentTaskId);
+                    self.fetch_data({ storeId: currentStoreId, taskId: currentTaskId });
                 } else {
                     frappe.msgprint({
                         title: '退回失败',
@@ -1960,8 +2001,10 @@ StorePlanningManager.prototype.reject_to_submitter = function() {
                         message: r.message.message || '已退回提交人',
                         indicator: 'orange'
                     }, 3);
-                    self.load_approval_status();
-                    self.fetch_data();
+                    const currentStoreId = self.filter_group.get_value('store_id');
+                    const currentTaskId = self.filter_group.get_value('task_id');
+                    self.load_approval_status(currentStoreId, currentTaskId);
+                    self.fetch_data({ storeId: currentStoreId, taskId: currentTaskId });
                 } else {
                     frappe.msgprint({
                         title: '退回失败',
@@ -1989,7 +2032,7 @@ StorePlanningManager.prototype.view_approval_history = function() {
     // 构建审批历史HTML
     let historyHTML = '<div class="approval-history-timeline">';
 
-    data.history.forEach((item, index) => {
+    data.history.forEach((item) => {
         const actionClass = item.action === '通过' ? 'text-success' :
                            item.action === '提交' ? 'text-primary' : 'text-danger';
 
