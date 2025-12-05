@@ -52,6 +52,9 @@ class DashboardManager {
 		};
 
 		this.init_ui();
+		// 页面加载时先获取所有 tabs 的统计数量
+		this.fetch_all_tabs_count();
+		// 然后获取当前 tab 的数据
 		this.fetch_data();
 	}
 
@@ -79,18 +82,6 @@ class DashboardManager {
 									</button>
 									<button class="btn btn-sm btn-default btn-clear-filters" title="清空所有筛选">
 										<i class="fa fa-eraser"></i> 清空
-									</button>
-								</div>
-							</div>
-						</div>
-						<div class="row" style="margin-top: 12px;">
-							<div class="col-12">
-								<div class="quick-actions">
-									<button class="btn btn-sm btn-warning btn-my-approvals" title="查看待我审批的任务">
-										<i class="fa fa-check-circle"></i> 待我审批
-									</button>
-									<button class="btn btn-sm btn-info btn-goto-data-view" title="跳转到数据查看页面">
-										<i class="fa fa-table"></i> 数据查看
 									</button>
 								</div>
 							</div>
@@ -145,6 +136,14 @@ class DashboardManager {
 
 		// 绑定事件
 		this.bind_events();
+
+		// 添加数据查看按钮到页面右上角
+		this.page.add_button('数据查看', () => {
+			frappe.set_route('data-view');
+		}, {
+			icon: 'table',
+			primary: false
+		});
 	}
 
 	init_filters() {
@@ -283,16 +282,6 @@ class DashboardManager {
 		this.wrapper.find('.btn-clear-filters').on('click', () => {
 			this.clear_filters();
 		});
-
-		// 待我审批按钮
-		this.wrapper.find('.btn-my-approvals').on('click', () => {
-			this.show_my_approvals();
-		});
-
-		// 跳转到数据查看页面按钮
-		this.wrapper.find('.btn-goto-data-view').on('click', () => {
-			frappe.set_route('data-view');
-		});
 	}
 
 	switch_tab(tab) {
@@ -344,19 +333,30 @@ class DashboardManager {
 		this.fetch_data();
 	}
 
-	show_my_approvals() {
-		if (this.filter_group) {
-			// 设置审批状态筛选器为"待审批"
-			this.filter_group.set_value('approval_status', '待审批');
-			this.filters.approval_status = '待审批';
-			// 清空其他筛选器
-			this.filter_group.set_value('store_ids', []);
-			this.filter_group.set_value('task_ids', []);
-			this.filters.store_ids = [];
-			this.filters.task_ids = [];
-		}
-		// 刷新数据
-		this.fetch_data();
+	fetch_all_tabs_count() {
+		const self = this;
+
+		// 构建筛选参数（不包含 tab 参数，获取所有数据）
+		const filters = {
+			store_ids: this.filters.store_ids || [],
+			task_ids: this.filters.task_ids || [],
+			approval_status: this.filters.approval_status
+		};
+
+		frappe.call({
+			method: "product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data",
+			args: { filters: filters },
+			callback: function(r) {
+				if (r.message && r.message.stats) {
+					// 只更新 tabs 的数量，不更新任务列表
+					self.wrapper.find('#pending-count').text(`(${r.message.stats.pending_count || 0})`);
+					self.wrapper.find('#completed-count').text(`(${r.message.stats.completed_count || 0})`);
+				}
+			},
+			error: function(err) {
+				console.error('获取 tabs 统计数量失败:', err);
+			}
+		});
 	}
 
 	fetch_data() {
@@ -372,6 +372,9 @@ class DashboardManager {
 
 		// 显示加载状态
 		this.render_loading();
+
+		// 同时获取所有 tabs 的统计数量（实时更新）
+		this.fetch_all_tabs_count();
 
 		frappe.call({
 			method: "product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data",
@@ -524,6 +527,10 @@ function inject_css() {
 	const css = `
 		#planning-dashboard-app { padding: 15px; max-width: 1400px; margin: 0 auto; }
 
+		/* 隐藏页面右上角的三个点菜单按钮 */
+		.page-head .menu-btn-group { display: none !important; }
+		.page-head .dropdown.dropdown-help { display: none !important; }
+
 		/* 筛选器区域 */
 		.filter-section { margin-bottom: 20px; }
 		.filter-card { background: #fff; padding: 16px 20px; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -531,8 +538,6 @@ function inject_css() {
 		.filter-card .form-group { margin-bottom: 0 !important; }
 		.filter-actions { display: flex; gap: 8px; align-items: flex-end; padding-top: 20px; flex-wrap: nowrap; }
 		.filter-actions .btn { white-space: nowrap; flex-shrink: 0; }
-		.quick-actions { display: flex; gap: 10px; justify-content: flex-start; flex-wrap: nowrap; }
-		.quick-actions .btn { white-space: nowrap; flex-shrink: 0; }
 
 		/* 统计卡片 */
 		.dashboard-stats-row { display: flex; gap: 20px; margin-bottom: 25px; }

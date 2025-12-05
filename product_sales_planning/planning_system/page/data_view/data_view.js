@@ -17,7 +17,7 @@ frappe.pages['data-view'].on_page_load = function(wrapper) {
                 <div class="mt-2 text-muted" style="font-size: 12px;">请稍候，正在初始化页面组件...</div>
             </div>
         </div>
-    `);
+`);
 
     // 加载 Handsontable CSS 和 JS（使用 frappe.require 优化）
     load_handsontable_assets().then(() => {

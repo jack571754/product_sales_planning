@@ -14,7 +14,6 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
             <div class="text-center p-5 text-muted">
                 <div class="spinner-border text-primary" role="status"></div>
                 <div class="mt-2">正在加载资源...</div>
-                <div class="mt-2 text-muted" style="font-size: 12px;">请稍候,正在初始化页面组件...</div>
             </div>
         </div>
     `);
@@ -138,24 +137,59 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
             .w-100 {
                 width: 100%;
             }
+
+            /* 列设置样式 */
+            .column-settings-section {
+                margin-bottom: 20px;
+            }
+            .column-settings-card {
+                background: #fff;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }
+            .column-settings-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 16px 20px;
+                background: #f9fafb;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            .column-settings-title {
+                font-size: 14px;
+                font-weight: 600;
+                color: #374151;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .column-settings-actions {
+                display: flex;
+                gap: 10px;
+            }
+            .column-checkboxes {
+                padding: 20px;
+                display: none;
+            }
         `).appendTo('head');
     }
 
-    // 确保资源加载完成后再初始化（优化版：串行加载，避免竞态）
+    // 资源加载（优化版：移除不必要的延迟）
     const loadResources = () => {
         return new Promise((resolve, reject) => {
             // 检查是否已加载
-            if (window.agGrid && window.agGrid.createGrid) {
-                console.log('✅ AG Grid already loaded');
+            if (window.Handsontable) {
+                console.log('✅ Handsontable already loaded');
                 resolve();
                 return;
             }
 
-            // 串行加载资源，避免并发导致的时序问题
+            // 加载CSS
             const loadCSS = (id, href) => {
                 return new Promise((res, rej) => {
                     if (document.getElementById(id)) {
-                        console.log(`✅ ${id} already exists`);
                         res();
                         return;
                     }
@@ -163,65 +197,44 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
                     link.id = id;
                     link.rel = 'stylesheet';
                     link.href = href;
-                    link.onload = () => {
-                        console.log(`✅ ${id} loaded`);
-                        // 等待CSS应用到DOM（关键优化）
-                        setTimeout(res, 50);
-                    };
-                    link.onerror = () => {
-                        console.error(`❌ ${id} loading failed`);
-                        rej(new Error(`${id}加载失败`));
-                    };
+                    link.onload = () => res();
+                    link.onerror = () => rej(new Error(`${id}加载失败`));
                     document.head.appendChild(link);
                 });
             };
 
+            // 加载JS
             const loadJS = (src) => {
                 return new Promise((res, rej) => {
                     const script = document.createElement('script');
                     script.src = src;
                     script.async = false;
                     script.onload = () => {
-                        console.log('✅ AG Grid JS loaded');
-                        // 轮询验证 agGrid 对象（兼容慢速浏览器）
-                        let retries = 0;
-                        const checkAgGrid = () => {
-                            if (window.agGrid && window.agGrid.createGrid) {
-                                console.log('✅ AG Grid object ready');
-                                res();
-                            } else if (retries < 20) {
-                                retries++;
-                                setTimeout(checkAgGrid, 100);
-                            } else {
-                                rej(new Error('AG Grid对象初始化超时'));
-                            }
-                        };
-                        checkAgGrid();
+                        if (window.Handsontable) {
+                            res();
+                        } else {
+                            rej(new Error('Handsontable对象未初始化'));
+                        }
                     };
-                    script.onerror = () => {
-                        console.error('❌ AG Grid JS loading failed');
-                        rej(new Error('AG Grid JS加载失败'));
-                    };
+                    script.onerror = () => rej(new Error('Handsontable JS加载失败'));
                     document.head.appendChild(script);
                 });
             };
 
-            // 串行加载：CSS1 -> CSS2 -> JS（确保顺序）
+            // 串行加载：CSS -> JS
             Promise.resolve()
-                .then(() => loadCSS('ag-grid-css', '/assets/product_sales_planning/js/lib/ag-grid.min.css'))
-                .then(() => loadCSS('ag-theme-alpine-css', '/assets/product_sales_planning/js/lib/ag-theme-alpine.min.css'))
-                .then(() => loadJS('/assets/product_sales_planning/js/lib/ag-grid-community.min.js'))
+                .then(() => loadCSS('handsontable-css', '/assets/product_sales_planning/js/lib/handsontable.full.min.css'))
+                .then(() => loadJS('/assets/product_sales_planning/js/lib/handsontable.full.min.js'))
                 .then(() => {
-                    console.log('✅ All resources loaded sequentially');
-                    // 额外等待确保浏览器完成样式计算
-                    setTimeout(resolve, 200);
+                    console.log('✅ All resources loaded');
+                    resolve();
                 })
                 .catch(reject);
 
-            // 设置总超时（30秒）
+            // 设置总超时（10秒）
             setTimeout(() => {
-                reject(new Error('资源加载超时（30秒），请检查网络或刷新页面'));
-            }, 30000);
+                reject(new Error('资源加载超时，请检查网络或刷新页面'));
+            }, 10000);
         });
     };
 
@@ -229,25 +242,19 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
     loadResources()
         .then(() => {
             console.log('✅ Resources loaded, initializing manager...');
-            // 确保DOM完全准备好，使用 requestAnimationFrame 确保浏览器完成渲染
-            requestAnimationFrame(() => {
-                setTimeout(() => {
-                    try {
-                        wrapper.store_manager = new StorePlanningManager(wrapper, page);
-                        console.log('✅ StorePlanningManager initialized');
-                    } catch (error) {
-                        console.error('❌ Manager initialization error:', error);
-                        $(wrapper).find('#store-detail-app').html(`
-                            <div class="alert alert-danger m-5">
-                                <h4>页面初始化失败</h4>
-                                <p>${error.message}</p>
-                                <p class="text-muted">请刷新页面重试</p>
-                                <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
-                            </div>
-                        `);
-                    }
-                }, 100);
-            });
+            try {
+                wrapper.store_manager = new StorePlanningManager(wrapper, page);
+                console.log('✅ StorePlanningManager initialized');
+            } catch (error) {
+                console.error('❌ Manager initialization error:', error);
+                $(wrapper).find('#store-detail-app').html(`
+                    <div class="alert alert-danger m-5">
+                        <h4>页面初始化失败</h4>
+                        <p>${error.message}</p>
+                        <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
+                    </div>
+                `);
+            }
         })
         .catch((error) => {
             console.error('❌ Resource loading error:', error);
@@ -255,12 +262,6 @@ frappe.pages['store-detail'].on_page_load = function(wrapper) {
                 <div class="alert alert-danger m-5">
                     <h4>资源加载失败</h4>
                     <p>${error.message}</p>
-                    <p class="text-muted">可能原因：</p>
-                    <ul class="text-muted">
-                        <li>网络连接不稳定</li>
-                        <li>浏览器版本过低（建议使用Chrome 90+、Firefox 88+、Edge 90+）</li>
-                        <li>静态资源文件缺失</li>
-                    </ul>
                     <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
                 </div>
             `);
@@ -326,6 +327,9 @@ class StorePlanningManager {
                         <div class="action-buttons">
                             <button class="btn btn-sm btn-secondary btn-return">
                                 <span class="fa fa-arrow-left"></span> 返回
+                            </button>
+                            <button class="btn btn-sm btn-success btn-export-excel">
+                                <span class="fa fa-download"></span> 导出Excel
                             </button>
                             <button class="btn btn-sm btn-danger btn-batch-delete-inline" style="display: none;">
                                 <span class="fa fa-trash"></span> 批量删除
@@ -408,13 +412,62 @@ class StorePlanningManager {
                     </div>
                 </div>
 
+                <!-- 列设置区域 -->
+                <div class="column-settings-section">
+                    <div class="column-settings-card">
+                        <div class="column-settings-header">
+                            <div class="column-settings-title">
+                                <i class="fa fa-columns"></i> 列显示设置
+                            </div>
+                            <div class="column-settings-actions">
+                                <button class="btn btn-sm btn-default btn-toggle-column-settings">
+                                    <i class="fa fa-cog"></i> 管理列
+                                </button>
+                            </div>
+                        </div>
+                        <div id="column-checkboxes" class="column-checkboxes"></div>
+                    </div>
+                </div>
+
                 <!-- 表格容器（可滚动） -->
-                <div id="datatable-container" class="datatable-container"></div>
+                <div class="handsontable-container" style="border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <div id="datatable-container" class="datatable-container"></div>
+                    <div class="pagination-section" style="display: flex; justify-content: flex-end; align-items: center; padding: 12px 16px; background: #f9fafb; border-top: 1px solid #e5e7eb;">
+                        <div class="pagination-info-left" style="display: flex; align-items: center; gap: 16px; font-size: 13px; color: #6b7280; margin-right: auto;">
+                            <span style="display: flex; align-items: center; gap: 6px;">
+                                共 <strong id="total-records" style="color: #111827; font-weight: 600;">0</strong> 条记录
+                            </span>
+                            <span style="color: #d1d5db;">|</span>
+                            <span style="display: flex; align-items: center; gap: 6px;">
+                                每页
+                                <select class="form-control input-xs" id="page-size-selector" style="display: inline-block; width: 75px; height: 32px; padding: 4px 8px; font-size: 13px; border: 1px solid #d1d5db; border-radius: 6px; margin: 0; vertical-align: middle; background: #fff; cursor: pointer;">
+                                    <option value="20">20</option>
+                                    <option value="50" selected>50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                </select>
+                                条
+                            </span>
+                        </div>
+                        <div class="pagination-controls" style="display: flex; align-items: center; gap: 8px;">
+                            <span class="pagination-page-info" style="font-size: 13px; color: #6b7280; margin-right: 12px;">
+                                第 <strong id="current-page" style="color: #111827; font-weight: 600;">1</strong> / <strong id="total-pages" style="color: #111827; font-weight: 600;">1</strong> 页
+                            </span>
+                            <button class="btn btn-xs btn-default btn-first-page" title="首页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;"><i class="fa fa-angle-double-left"></i></button>
+                            <button class="btn btn-xs btn-default btn-prev-page" title="上一页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;"><i class="fa fa-angle-left"></i></button>
+                            <input type="number" class="form-control input-xs" id="goto-page-input" min="1" placeholder="页码" style="width: 70px; height: 32px; padding: 4px 8px; font-size: 13px; text-align: center; border: 1px solid #d1d5db; border-radius: 6px;">
+                            <button class="btn btn-xs btn-primary btn-goto-page" style="padding: 6px 14px; border-radius: 6px; font-size: 13px; height: 32px;">跳转</button>
+                            <button class="btn btn-xs btn-default btn-next-page" title="下一页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;"><i class="fa fa-angle-right"></i></button>
+                            <button class="btn btn-xs btn-default btn-last-page" title="末页" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; min-width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;"><i class="fa fa-angle-double-right"></i></button>
+                        </div>
+                    </div>
+                </div>
             </div>
         `);
 
         // 绑定按钮事件
         this.wrapper.find('.btn-return').on('click', () => this.return_to_previous());
+        this.wrapper.find('.btn-export-excel').on('click', () => this.export_to_excel());
         this.wrapper.find('.btn-add-product').on('click', () => this.open_product_dialog());
         this.wrapper.find('.btn-import-excel').on('click', () => this.open_import_dialog());
         this.wrapper.find('.btn-import-mechanism').on('click', () => this.open_mechanism_import_dialog());
@@ -430,6 +483,33 @@ class StorePlanningManager {
         this.wrapper.find('.btn-reject-previous').on('click', () => this.reject_to_previous());
         this.wrapper.find('.btn-reject-submitter').on('click', () => this.reject_to_submitter());
         this.wrapper.find('.btn-view-history').on('click', () => this.view_approval_history());
+
+        // 列设置器按钮
+        this.wrapper.find('.btn-toggle-column-settings').on('click', () => this.toggle_column_settings());
+
+        // 分页按钮事件
+        this.wrapper.find('.btn-first-page').on('click', () => this.goto_page(1));
+        this.wrapper.find('.btn-prev-page').on('click', () => this.goto_page(this.currentPage - 1));
+        this.wrapper.find('.btn-next-page').on('click', () => this.goto_page(this.currentPage + 1));
+        this.wrapper.find('.btn-last-page').on('click', () => {
+            const totalPages = Math.ceil(this.hotData.length / this.pageSize);
+            this.goto_page(totalPages);
+        });
+        this.wrapper.find('.btn-goto-page').on('click', () => {
+            const page = parseInt(this.wrapper.find('#goto-page-input').val());
+            if (page && page > 0) this.goto_page(page);
+        });
+        this.wrapper.find('#goto-page-input').on('keypress', (e) => {
+            if (e.which === 13) { // Enter键
+                const page = parseInt(this.wrapper.find('#goto-page-input').val());
+                if (page && page > 0) this.goto_page(page);
+            }
+        });
+        this.wrapper.find('#page-size-selector').on('change', (e) => {
+            this.pageSize = parseInt($(e.target).val());
+            this.currentPage = 1;
+            this.updateTableData();
+        });
 
         this.init_filter_fields();
     }
@@ -678,180 +758,165 @@ class StorePlanningManager {
     init_multi_month_table(container) {
         const self = this;
 
-        // 如果AG Grid还未加载，等待加载
-        if (!window.agGrid) {
+        // 如果Handsontable还未加载，等待加载
+        if (!window.Handsontable) {
             setTimeout(() => this.init_multi_month_table(container), 200);
             return;
         }
 
-        // 清空容器并创建AG Grid容器（添加ag-theme-alpine类名）
-        container.innerHTML = '<div id="ag-grid-container" class="ag-theme-alpine" style="width: 100%; height: 100%;"></div>';
+        // 只创建Handsontable容器，不创建分页（分页已在init_ui中创建）
+        // 使用固定高度确保分页器可见
+        container.innerHTML = `
+            <div id="handsontable-container" style="width: 100%; height: 500px; overflow: auto;"></div>
+        `;
 
-        // 准备列定义
-        const columnDefs = [
+        // 创建 Handsontable 容器引用
+        const hotContainer = container.querySelector('#handsontable-container');
+
+        // 准备表头（移除 # 列，使用 rowHeaders 代替）
+        const headers = ['商品名称', '编码', '规格', '品牌', '类别'];
+        const colHeaders = [...headers, ...this.months];
+
+        // 准备列配置（移除 index 列）
+        const hotColumns = [
             {
-                headerName: '',
-                field: 'selected',
-                checkboxSelection: true,
-                headerCheckboxSelection: true,
-                width: 50,
-                pinned: 'left',
-                lockPosition: true,
-                suppressMenu: true
+                data: 'name1',
+                readOnly: true,
+                width: 250,
+                className: 'htLeft htMiddle',
+                renderer: function(instance, td, row, col, prop, value, cellProperties) {
+                    // 自定义渲染器：不换行，文本溢出显示省略号
+                    td.style.whiteSpace = 'nowrap';
+                    td.style.overflow = 'hidden';
+                    td.style.textOverflow = 'ellipsis';
+                    td.textContent = value || '';
+                    return td;
+                }
             },
-            {
-                headerName: '#',
-                valueGetter: 'node.rowIndex + 1',
-                width: 60,
-                pinned: 'left',
-                lockPosition: true,
-                suppressMenu: true
-            },
-            {
-                headerName: '商品名称',
-                field: 'name1',
-                width: 200,
-                pinned: 'left',
-                filter: 'agTextColumnFilter'
-            },
-            {
-                headerName: '编码',
-                field: 'code',
-                width: 120,
-                filter: 'agTextColumnFilter'
-            },
-            {
-                headerName: '规格',
-                field: 'specifications',
-                width: 100,
-                filter: 'agTextColumnFilter'
-            },
-            {
-                headerName: '品牌',
-                field: 'brand',
-                width: 100,
-                filter: 'agTextColumnFilter'
-            },
-            {
-                headerName: '类别',
-                field: 'category',
-                width: 100,
-                filter: 'agTextColumnFilter'
-            }
+            { data: 'code', readOnly: true, width: 120 },
+            { data: 'specifications', readOnly: true, width: 100 },
+            { data: 'brand', readOnly: true, width: 100 },
+            { data: 'category', readOnly: true, width: 100 }
         ];
 
         // 动态添加月份列
         this.months.forEach(month => {
-            columnDefs.push({
-                headerName: month,
-                field: `month_${month}`,
-                width: 120,
-                editable: true,
-                filter: 'agNumberColumnFilter',
-                cellEditor: 'agNumberCellEditor',
-                cellEditorParams: {
-                    min: 0,
-                    precision: 0
+            hotColumns.push({
+                data: `month_${month}`,
+                type: 'numeric',
+                numericFormat: {
+                    pattern: '0'
                 },
-                valueGetter: (params) => {
-                    if (params.data && params.data.months && params.data.months[month]) {
-                        return params.data.months[month].quantity || 0;
-                    }
-                    return 0;
-                },
-                valueSetter: (params) => {
-                    const newValue = parseInt(params.newValue) || 0;
-                    if (!params.data.months) {
-                        params.data.months = {};
-                    }
-                    if (!params.data.months[month]) {
-                        params.data.months[month] = {};
-                    }
-                    params.data.months[month].quantity = newValue;
-                    return true;
-                },
-                cellStyle: { textAlign: 'right' }
+                width: 120
             });
         });
 
-        // 准备行数据
-        const rowData = this.data.map(item => ({
-            ...item,
-            months: item.months || {}
-        }));
+        // 准备数据（移除 index 字段）
+        const hotData = this.data.map((item) => {
+            const row = {
+                name1: item.name1,
+                code: item.code,
+                specifications: item.specifications,
+                brand: item.brand,
+                category: item.category
+            };
 
-        // AG Grid 配置
-        const gridOptions = {
-            columnDefs: columnDefs,
-            rowData: rowData,
-            defaultColDef: {
-                sortable: true,
-                resizable: true,
-                filter: true,
-                floatingFilter: false,  // 默认隐藏浮动筛选器
-                tooltipValueGetter: (params) => {
-                    // 鼠标悬浮时显示完整字段内容
-                    return params.value;
+            // 添加月份数据
+            this.months.forEach(month => {
+                row[`month_${month}`] = (item.months && item.months[month]) ? item.months[month].quantity || 0 : 0;
+            });
+
+            return row;
+        });
+
+        // 分页配置
+        this.pageSize = 50;
+        this.currentPage = 1;
+        this.hotData = hotData;
+
+        // 获取当前页数据
+        const getPageData = (page) => {
+            const start = (page - 1) * this.pageSize;
+            const end = start + this.pageSize;
+            return this.hotData.slice(start, end);
+        };
+
+        // 清空容器
+        hotContainer.innerHTML = '';
+
+        // 创建 Handsontable 实例
+        const self = this;
+        this.hot = new Handsontable(hotContainer, {
+            data: getPageData(this.currentPage),
+            colHeaders: colHeaders,
+            columns: hotColumns,
+            rowHeaders: true,  // 使用内置行号
+            width: '100%',
+            height: '100%',
+            licenseKey: 'non-commercial-and-evaluation',
+            stretchH: 'all',
+            autoWrapRow: false,  // 禁用自动换行
+            autoWrapCol: false,
+            manualRowResize: true,
+            manualColumnResize: true,
+            manualRowMove: false,
+            manualColumnMove: false,
+
+            // 右键菜单配置
+            contextMenu: {
+                items: {
+                    'row_above': {},
+                    'row_below': {},
+                    'separator1': '---------',
+                    'remove_row': {},
+                    'separator2': '---------',
+                    'undo': {},
+                    'redo': {},
+                    'separator3': '---------',
+                    'make_read_only': {},
+                    'alignment': {},
+                    'separator4': '---------',
+                    'copy': {},
+                    'cut': {}
                 }
             },
-            // 范围选择配置 - 优化选择体验
-            enableRangeSelection: true,  // 启用范围选择
-            enableFillHandle: true,  // 启用填充手柄（右下角小方块拖拽）
-            fillHandleDirection: 'xy',  // 允许横向和纵向填充
-            suppressMultiRangeSelection: false,  // 允许Ctrl+点击多范围选择
 
-            // 选择行为配置
-            rowSelection: 'multiple',  // 允许多行选择
-            suppressRowClickSelection: true,  // 点击单元格不选择行
-            suppressCellFocus: false,  // 允许单元格获得焦点
+            // 启用筛选器
+            filters: true,
 
-            ensureDomOrder: true,
-            animateRows: true,
+            // 下拉菜单配置（包含列隐藏功能）
+            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar', '---------', 'hidden_columns_hide', 'hidden_columns_show', '---------', 'alignment'],
 
-            // 启用分页
-            pagination: true,
-            paginationPageSize: 50,  // 每页50条
-            paginationPageSizeSelector: [20, 50, 100, 200],  // 可选的每页条数
+            // 启用列排序
+            columnSorting: true,
+            sortIndicator: true,
 
-            domLayout: 'normal',
-
-            // Excel 复制粘贴配置（增强版）
-            enableClipboard: true,
-            enableCellTextSelection: true,  // 允许选择单元格文本
-            copyHeadersToClipboard: false,  // 不复制表头，更适合粘贴
-            suppressCopyRowsToClipboard: false,
-            suppressCopySingleCellRanges: false,  // 允许复制单个单元格
-
-            // 处理复制事件
-            processCellForClipboard: (params) => {
-                // 返回单元格的值用于复制
-                return params.value;
+            // 启用隐藏列功能
+            hiddenColumns: {
+                indicators: true,
+                columns: [],
+                copyPasteEnabled: true
             },
 
-            // 处理粘贴事件
-            processCellFromClipboard: (params) => {
-                // 解析粘贴的值
-                const value = params.value;
-                // 如果是数字列，转换为数字
-                if (params.column.getColId().startsWith('month_')) {
-                    return parseInt(value) || 0;
+            // 启用复制粘贴
+            copyPaste: true,
+
+            afterChange: (changes, source) => {
+                if (source === 'loadData' || !changes) {
+                    return;
                 }
-                return value;
-            },
 
-            // 单元格编辑完成事件
-            onCellValueChanged: (event) => {
-                // 获取修改的月份
-                const field = event.column.getColId();
-                const monthMatch = field.match(/^month_(.+)$/);
+                changes.forEach(([row, prop, oldValue, newValue]) => {
+                    if (oldValue === newValue) return;
 
-                if (monthMatch) {
-                    const month = monthMatch[1];
-                    const code = event.data.code;
-                    const newQty = event.newValue || 0;
-                    const oldQty = event.oldValue || 0;
+                    const monthMatch = prop.match(/^month_(.+)$/);
+                    if (monthMatch) {
+                        const month = monthMatch[1];
+                        const actualRow = (self.currentPage - 1) * self.pageSize + row;
+                        const rowData = self.hotData[actualRow];
+                        const code = rowData.code;
+                        const quantity = parseInt(newValue) || 0;
 
-                    if (newQty !== oldQty) {
                         const currentStoreId = self.filter_group.get_value('store_id');
                         const currentTaskId = self.filter_group.get_value('task_id');
 
@@ -864,101 +929,87 @@ class StorePlanningManager {
                         }
 
                         // 保存到后端
-                        self.save_month_quantity(currentStoreId, currentTaskId, code, month, newQty);
-                    }
-                }
-            },
-
-            // 粘贴事件处理
-            onPasteEnd: (event) => {
-                frappe.show_alert({
-                    message: '数据已粘贴，正在保存...',
-                    indicator: 'blue'
-                }, 2);
-
-                // 批量保存粘贴的数据
-                const currentStoreId = self.filter_group.get_value('store_id');
-                const currentTaskId = self.filter_group.get_value('task_id');
-
-                if (!currentStoreId || !currentTaskId) {
-                    frappe.show_alert({
-                        message: '请先选择店铺和计划任务',
-                        indicator: 'red'
-                    }, 3);
-                    return;
-                }
-
-                // 收集所有修改的数据
-                const updates = [];
-                event.api.forEachNode((node) => {
-                    if (node.data && node.data.months) {
-                        self.months.forEach(month => {
-                            const qty = node.data.months[month]?.quantity || 0;
-                            updates.push({
-                                code: node.data.code,
-                                month: month,
-                                quantity: qty
-                            });
-                        });
+                        self.save_month_quantity(currentStoreId, currentTaskId, code, month, quantity);
                     }
                 });
-
-                // 批量保存
-                self.batch_save_quantities(currentStoreId, currentTaskId, updates);
-            },
-
-            // 选择变化事件
-            onSelectionChanged: (event) => {
-                const selectedRows = event.api.getSelectedRows();
-                self.checked_rows.clear();
-                selectedRows.forEach(row => {
-                    self.checked_rows.add(row.code);
-                });
-                self.update_batch_btn();
-            },
-
-            // 本地化配置
-            localeText: {
-                // 筛选器
-                filterOoo: '筛选...',
-                equals: '等于',
-                notEqual: '不等于',
-                lessThan: '小于',
-                greaterThan: '大于',
-                lessThanOrEqual: '小于或等于',
-                greaterThanOrEqual: '大于或等于',
-                inRange: '范围',
-                contains: '包含',
-                notContains: '不包含',
-                startsWith: '开始于',
-                endsWith: '结束于',
-                andCondition: '且',
-                orCondition: '或',
-                applyFilter: '应用',
-                resetFilter: '重置',
-                clearFilter: '清除',
-                // 其他
-                noRowsToShow: '暂无数据',
-                loadingOoo: '加载中...',
-                page: '页',
-                to: '到',
-                of: '共',
-                next: '下一页',
-                last: '最后一页',
-                first: '第一页',
-                previous: '上一页',
-                // 复制粘贴
-                copy: '复制',
-                copyWithHeaders: '复制（含表头）',
-                paste: '粘贴'
             }
-        };
+        });
 
-        // 创建 AG Grid 实例
-        const gridDiv = document.querySelector('#ag-grid-container');
-        this.gridApi = agGrid.createGrid(gridDiv, gridOptions);
+        console.log('✅ Handsontable 表格初始化完成');
 
-        console.log('✅ AG Grid 表格初始化完成');
+        // 初始化列设置器
+        this.init_column_checkboxes();
+
+        // 重新绑定分页按钮事件（因为HTML是动态生成的）
+        this.bind_pagination_events();
+
+        // 渲染分页控件
+        this.renderPagination();
+    }
+
+    bind_pagination_events() {
+
+        // 绑定分页按钮事件
+        this.wrapper.find('.btn-first-page').off('click').on('click', () => this.goto_page(1));
+        this.wrapper.find('.btn-prev-page').off('click').on('click', () => this.goto_page(this.currentPage - 1));
+        this.wrapper.find('.btn-next-page').off('click').on('click', () => this.goto_page(this.currentPage + 1));
+        this.wrapper.find('.btn-last-page').off('click').on('click', () => {
+            const totalPages = Math.ceil(this.hotData.length / this.pageSize);
+            this.goto_page(totalPages);
+        });
+        this.wrapper.find('.btn-goto-page').off('click').on('click', () => {
+            const page = parseInt(this.wrapper.find('#goto-page-input').val());
+            if (page && page > 0) this.goto_page(page);
+        });
+        this.wrapper.find('#goto-page-input').off('keypress').on('keypress', (e) => {
+            if (e.which === 13) { // Enter键
+                const page = parseInt(this.wrapper.find('#goto-page-input').val());
+                if (page && page > 0) this.goto_page(page);
+            }
+        });
+        this.wrapper.find('#page-size-selector').off('change').on('change', (e) => {
+            this.pageSize = parseInt($(e.target).val());
+            this.currentPage = 1;
+            this.updateTableData();
+        });
+    }
+
+    renderPagination() {
+        const totalPages = Math.ceil(this.hotData.length / this.pageSize) || 1;
+
+        // 更新分页信息
+        this.wrapper.find('#total-records').text(this.hotData.length || 0);
+        this.wrapper.find('#current-page').text(this.currentPage);
+        this.wrapper.find('#total-pages').text(totalPages);
+
+        // 更新分页按钮状态
+        this.wrapper.find('.btn-first-page').prop('disabled', this.currentPage === 1);
+        this.wrapper.find('.btn-prev-page').prop('disabled', this.currentPage === 1);
+        this.wrapper.find('.btn-next-page').prop('disabled', this.currentPage >= totalPages);
+        this.wrapper.find('.btn-last-page').prop('disabled', this.currentPage >= totalPages);
+
+        // 更新页面大小选择器
+        this.wrapper.find('#page-size-selector').val(this.pageSize);
+    }
+
+    goto_page(page) {
+        const totalPages = Math.ceil(this.hotData.length / this.pageSize) || 1;
+        if (page < 1) page = 1;
+        else if (page > totalPages) page = totalPages;
+        if (page === this.currentPage) return;
+        this.currentPage = page;
+        this.updateTableData();
+    }
+
+    updateTableData() {
+        const start = (this.currentPage - 1) * this.pageSize;
+        const end = start + this.pageSize;
+        const pageData = this.hotData.slice(start, end);
+
+        if (this.hot) {
+            this.hot.loadData(pageData);
+            this.renderPagination();
+        }
     }
 
     // 旧的HTML表格渲染方法已被AG Grid替代
@@ -1361,6 +1412,40 @@ class StorePlanningManager {
             }
         });
     }
+
+    export_to_excel() {
+        const storeId = this.filter_group.get_value('store_id');
+        const taskId = this.filter_group.get_value('task_id');
+
+        frappe.call({
+            method: "product_sales_planning.planning_system.page.store_detail.store_detail.export_commodity_data",
+            args: {
+                store_id: storeId,
+                task_id: taskId
+            },
+            freeze: true,
+            freeze_message: "正在导出数据...",
+            callback: (r) => {
+                if (r.message && r.message.status === "success") {
+                    window.open(r.message.file_url, '_blank');
+                    frappe.show_alert({
+                        message: `成功导出 ${r.message.record_count} 条记录`,
+                        indicator: 'green'
+                    }, 3);
+                } else {
+                    frappe.msgprint({
+                        title: '导出失败',
+                        message: r.message?.message || "导出失败",
+                        indicator: 'red'
+                    });
+                }
+            },
+            error: (err) => {
+                frappe.msgprint("导出失败");
+                console.error("导出失败:", err);
+            }
+        });
+    }
 }
 
 // 全局函数：下载单品导入模板
@@ -1482,8 +1567,11 @@ StorePlanningManager.prototype.load_approval_status = function(storeId, taskId) 
 StorePlanningManager.prototype.update_approval_ui = function() {
     const data = this.approval_data;
 
+    console.log('🔍 update_approval_ui called with data:', data);
+
     if (!data || !data.workflow || !data.workflow.has_workflow) {
         // 没有审批流程，隐藏所有审批UI
+        console.log('⚠️ 没有审批流程，显示所有操作按钮');
         this.wrapper.find('.approval-status-area').hide();
         this.wrapper.find('.btn-submit-approval').hide();
         this.wrapper.find('.btn-withdraw-approval').hide();
@@ -1503,6 +1591,14 @@ StorePlanningManager.prototype.update_approval_ui = function() {
     const currentState = data.workflow.current_state;
     const canEdit = data.can_edit;
     const canApprove = data.can_approve;
+
+    console.log('📊 Current State:', {
+        status: currentState.status,
+        approval_status: currentState.approval_status,
+        current_step: currentState.current_step,
+        can_edit: canEdit,
+        can_approve: canApprove
+    });
 
     // 显示审批状态区域
     this.wrapper.find('.approval-status-area').show();
@@ -1599,8 +1695,19 @@ StorePlanningManager.prototype.update_approval_ui = function() {
     const showOperationButtons = (currentState.status === '未开始' && currentState.current_step === 0) ||
                                   (currentState.approval_status === '已驳回' && canEdit);
 
+    console.log('🔘 Button visibility logic:', {
+        showOperationButtons: showOperationButtons,
+        condition1: currentState.status === '未开始' && currentState.current_step === 0,
+        condition2: currentState.approval_status === '已驳回' && canEdit,
+        currentState_status: currentState.status,
+        currentState_approval_status: currentState.approval_status,
+        currentState_current_step: currentState.current_step,
+        canEdit: canEdit
+    });
+
     if (showOperationButtons) {
         // 未提交或被退回状态：显示所有操作按钮
+        console.log('✅ 显示所有操作按钮（未提交或被退回状态）');
         this.wrapper.find('.btn-add-product').show();
         this.wrapper.find('.btn-import-excel').show();
         this.wrapper.find('.btn-import-mechanism').show();
@@ -1608,6 +1715,7 @@ StorePlanningManager.prototype.update_approval_ui = function() {
         // 批量删除按钮根据选中状态控制，不在这里处理
     } else {
         // 审批中或已通过：隐藏所有操作按钮
+        console.log('❌ 隐藏所有操作按钮（审批中或已通过）');
         this.wrapper.find('.btn-add-product').hide();
         this.wrapper.find('.btn-import-excel').hide();
         this.wrapper.find('.btn-import-mechanism').hide();
@@ -1914,4 +2022,57 @@ StorePlanningManager.prototype.view_approval_history = function() {
             }
         }
     });
+};
+
+// 列设置器方法
+StorePlanningManager.prototype.init_column_checkboxes = function() {
+    if (!this.hot) return;
+    const $checkboxArea = this.wrapper.find('#column-checkboxes');
+    const hiddenColumnsPlugin = this.hot.getPlugin('hiddenColumns');
+    const allColumns = this.hot.countCols();
+    const hiddenColumns = hiddenColumnsPlugin.hiddenColumns || [];
+
+    let html = `
+        <div style="margin-bottom: 10px;">
+            <label style="cursor: pointer; user-select: none; font-weight: 600;">
+                <input type="checkbox" id="select-all-columns-inline" checked style="margin-right: 8px;">
+                全选/取消全选
+            </label>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;">
+    `;
+
+    for (let i = 0; i < allColumns; i++) {
+        const header = this.hot.getColHeader(i);
+        const isVisible = !hiddenColumns.includes(i);
+        const checked = isVisible ? 'checked' : '';
+        html += `
+            <label style="cursor: pointer; padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 4px; user-select: none; display: flex; align-items: center; background: ${isVisible ? '#fff' : '#f8f9fa'};">
+                <input type="checkbox" class="column-checkbox-inline" data-col-index="${i}" ${checked} style="margin-right: 8px;">
+                <span style="font-size: 13px;">${header}</span>
+            </label>
+        `;
+    }
+    html += '</div>';
+    $checkboxArea.html(html);
+
+    this.wrapper.find('#select-all-columns-inline').on('change', function() {
+        const checked = $(this).is(':checked');
+        $checkboxArea.find('.column-checkbox-inline').prop('checked', checked).trigger('change');
+    });
+
+    this.wrapper.find('.column-checkbox-inline').on('change', (e) => {
+        const $checkbox = $(e.target);
+        const colIndex = parseInt($checkbox.data('col-index'));
+        if ($checkbox.is(':checked')) hiddenColumnsPlugin.showColumn(colIndex);
+        else hiddenColumnsPlugin.hideColumn(colIndex);
+        this.hot.render();
+        $checkbox.closest('label').css('background', $checkbox.is(':checked') ? '#fff' : '#f8f9fa');
+    });
+};
+
+StorePlanningManager.prototype.toggle_column_settings = function() {
+    const $checkboxArea = this.wrapper.find('#column-checkboxes');
+    if ($checkboxArea.is(':visible')) $checkboxArea.slideUp(200);
+    else $checkboxArea.slideDown(200);
 };

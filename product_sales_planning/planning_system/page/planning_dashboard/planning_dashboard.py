@@ -138,17 +138,27 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
                         sub_status = item.status or "未开始"
                         approval_stat = item.approval_status or "待审批"
 
-                        # 应用 Tab 筛选（基于审批状态）
-                        if current_tab == 'completed':
-                            # 已完成 tab：只显示已通过的任务
-                            if approval_stat != '已通过':
-                                continue
-                        elif current_tab == 'pending':
-                            # 待完成 tab：显示待审批和已驳回的任务
-                            if approval_stat == '已通过':
-                                continue
+                        # 🔥 先进行全局统计（在应用任何过滤器之前）
+                        # 统计审批状态
+                        if approval_stat == "已通过":
+                            stats["approved_count"] += 1
+                            stats["completed_count"] += 1
+                        elif approval_stat == "已驳回":
+                            stats["rejected_count"] += 1
+                            stats["pending_count"] += 1
+                        else:
+                            # 待审批
+                            stats["pending_count"] += 1
 
-                        # 应用其他过滤器
+                        # 统计提交状态
+                        if sub_status == "已提交":
+                            stats["submitted_count"] += 1
+
+                        # 统计紧急任务
+                        if is_urgent:
+                            stats["urgent_count"] += 1
+
+                        # 应用其他过滤器（在统计之后再过滤）
                         # 🔥 新增：店铺筛选（支持多选）
                         if filters.get("store_ids"):
                             store_ids = filters["store_ids"]
@@ -178,6 +188,16 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
                                     search_lower in plan_name.lower()):
                                 continue
 
+                        # 应用 Tab 筛选（基于审批状态）- 只影响任务列表，不影响统计
+                        if current_tab == 'completed':
+                            # 已完成 tab：只显示已通过的任务
+                            if approval_stat != '已通过':
+                                continue
+                        elif current_tab == 'pending':
+                            # 待完成 tab：显示待审批和已驳回的任务
+                            if approval_stat == '已通过':
+                                continue
+
                         submit_time_str = " "
                         if item.sub_time:
                             try:
@@ -204,21 +224,6 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
                         }
 
                         processed_tasks.append(task_data)
-
-                        # 更新统计
-                        if is_urgent:
-                            stats["urgent_count"] += 1
-                        if sub_status == "已提交":
-                            stats["submitted_count"] += 1
-                        if approval_stat == "已通过":
-                            stats["approved_count"] += 1
-                            stats["completed_count"] += 1
-                        elif approval_stat == "已驳回":
-                            stats["rejected_count"] += 1
-                            stats["pending_count"] += 1
-                        else:
-                            # 待审批
-                            stats["pending_count"] += 1
 
             except Exception as e:
                 frappe.log_error(f"处理任务失败: {p.name}", str(e))

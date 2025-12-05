@@ -11,7 +11,7 @@ app_license = "mit"
 
 api_methods = [
     "product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data",
-    "product_sales_planning.planning_system.page.store_detail.get_store_commodity_data",
+    "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
     "product_sales_planning.planning_system.page.store_detail.store_detail.update_line_item",
     "product_sales_planning.planning_system.page.store_detail.store_detail.insert_commodity_schedule",
     "product_sales_planning.planning_system.page.store_detail.store_detail.bulk_insert_commodity_schedule",
@@ -59,7 +59,7 @@ api_methods = [
 
 # include js, css files in header of desk.html
 app_include_css = "/assets/product_sales_planning/css/common-styles.css"
-# app_include_js = "/assets/product_sales_planning/js/product_sales_planning.js"
+app_include_js = "/assets/product_sales_planning/js/product_sales_planning.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/product_sales_planning/css/product_sales_planning.css"
@@ -96,6 +96,9 @@ app_include_css = "/assets/product_sales_planning/css/common-styles.css"
 # role_home_page = {
 # 	"Role": "home_page"
 # }
+
+# Page Routes
+# ----------
 
 # Generators
 # ----------
@@ -274,4 +277,12 @@ app_include_css = "/assets/product_sales_planning/css/common-styles.css"
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+
+# Page Routes
+# ----------
+page_routes = [
+    {"path": "planning-dashboard", "page": "planning_dashboard"},
+    {"path": "store-detail", "page": "store_detail"},
+    {"path": "data-view", "page": "data_view"}
+]
 

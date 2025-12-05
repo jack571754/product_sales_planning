@@ -5,3 +5,14 @@
 tags
 node_modules
 __pycache__
+
+# Backup files
+*.backup
+*.backup_*
+*.bak
+*.old
+
+# IDE files
+.vscode/
+.idea/
+*.swo
