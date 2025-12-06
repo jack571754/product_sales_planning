@@ -28,7 +28,6 @@
         <div class="md:col-span-4 space-y-1">
           <label class="text-xs font-medium text-gray-500">店铺筛选</label>
           <Autocomplete
-            v-if="options.stores.length"
             placeholder="选择店铺 (可多选)..."
             :options="options.stores"
             v-model="filters.store_ids"
@@ -36,11 +35,10 @@
             size="sm"
           />
         </div>
-        
+
         <div class="md:col-span-4 space-y-1">
           <label class="text-xs font-medium text-gray-500">计划任务</label>
           <Autocomplete
-            v-if="options.tasks.length"
             placeholder="选择任务 (可多选)..."
             :options="options.tasks"
             v-model="filters.task_ids"
@@ -178,11 +176,8 @@
 </template>
 
 <script setup>
-import { reactive, ref, computed, onMounted, watch } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { createResource, Button, Badge, Autocomplete, FeatherIcon, LoadingIndicator } from 'frappe-ui'
-import { useRouter } from 'vue-router'
-
-const router = useRouter()
 
 // --- 响应式状态 ---
 const filters = reactive({
@@ -220,12 +215,16 @@ const dashboardResource = createResource({
   makeParams() {
     // 🔥 核心修复：数据转换
     // Autocomplete 的 v-model 是对象数组，后端需要简单的 ID 数组 (Strings)
-    const storeIds = filters.store_ids.map(item => item.value)
-    const taskIds = filters.task_ids.map(item => item.value)
+    const storeIds = Array.isArray(filters.store_ids)
+      ? filters.store_ids.map(item => typeof item === 'object' ? item.value : item).filter(Boolean)
+      : []
+    const taskIds = Array.isArray(filters.task_ids)
+      ? filters.task_ids.map(item => typeof item === 'object' ? item.value : item).filter(Boolean)
+      : []
 
     return {
       filters: {
-        store_ids: storeIds, 
+        store_ids: storeIds,
         task_ids: taskIds,
         approval_status: filters.approval_status,
         tab: currentTab.value
@@ -284,14 +283,9 @@ function goToDataView() {
 }
 
 function openStoreDetail(task) {
-    // 假设你的路由配置了 :storeId 和 :parentId
-    router.push({
-        name: 'StoreDetail', // 确保 router.js 里有这个 name
-        params: {
-            storeId: task.store_id,
-            parentId: task.parent_id // 这里对应的是任务 ID
-        }
-    })
+    // 跳转到传统 Frappe Page 的店铺详情页
+    const url = `/app/store-detail?store_id=${encodeURIComponent(task.store_id)}&task_id=${encodeURIComponent(task.parent_id)}`
+    window.location.href = url
 }
 
 // --- Lifecycle ---
