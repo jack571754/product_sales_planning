@@ -6,6 +6,63 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 这是一个基于 Frappe Framework (v15) 开发的产品销售规划系统，用于管理商品计划、店铺分配和审批流程。系统支持月度常规计划(MON)和专项促销活动(PRO)的创建、审批和执行跟踪。
 
+### 双前端架构
+
+本项目采用**双前端架构**，同时支持两种前端技术栈：
+
+1. **传统 Frappe Page**（位于 `planning_system/page/`）
+   - 使用 Frappe 内置的 Page 机制
+   - 适合需要深度集成 Frappe Desk 的页面
+   - 示例：planning_dashboard, store_detail, data_view
+
+2. **Vue 3 SPA**（位于 `frontend/`）
+   - 独立的 Vue 3 + frappe-ui 单页应用
+   - 使用 Vite 构建，支持现代前端开发体验
+   - 通过 `/planning` 路由访问
+   - 适合需要复杂交互和现代 UI 的页面
+
+两种前端共享相同的后端 API（通过 `@frappe.whitelist` 装饰器暴露）。
+
+## 安装和初始设置
+
+### 安装应用
+
+```bash
+# 克隆仓库到 bench apps 目录
+cd $PATH_TO_YOUR_BENCH
+bench get-app $URL_OF_THIS_REPO --branch develop
+
+# 在站点上安装应用
+bench --site [site-name] install-app product_sales_planning
+
+# 安装 pre-commit hooks（用于代码质量检查）
+cd apps/product_sales_planning
+pre-commit install
+```
+
+### 初始化 Vue 前端
+
+```bash
+# 进入前端目录并安装依赖
+cd apps/product_sales_planning/frontend
+yarn install
+# 或
+npm install
+
+# 首次构建（生成生产资源）
+yarn build
+```
+
+### 开发环境配置
+
+在站点的 `site_config.json` 中添加以下配置（用于开发）：
+
+```json
+{
+  "ignore_csrf": 1
+}
+```
+
 ## 开发环境与命令
 
 ### 常用 Bench 命令
@@ -58,7 +115,7 @@ yarn dev
 # 或
 npm run dev
 
-# 构建生产版本（输出到 ../product_sales_planning/public/frontend）
+# 构建生产版本（输出到 ../product_sales_planning/public/planning）
 yarn build
 # 或
 npm run build
@@ -70,8 +127,10 @@ yarn preview
 **重要配置**：
 - 开发环境需在 `site_config.json` 中添加 `"ignore_csrf": 1` 以避免 CSRF 错误
 - 开发服务器通过 Vite 代理到 Frappe 后端（默认 8000 端口）
-- 访问地址：`http://[site-name]:8080/frontend`
-- 生产环境路由基础路径：`/frontend`
+- 开发环境访问地址：`http://[site-name]:8080/planning/`
+- 生产环境访问地址：`http://[site-name]:8000/planning`
+- 生产环境路由基础路径：`/assets/product_sales_planning/planning/`
+- 构建输出目录：`product_sales_planning/public/planning/`
 
 ### 开发工作流
 
@@ -108,10 +167,23 @@ product_sales_planning/
 │   ├── validation_utils.py           # 参数验证
 │   └── date_utils.py                 # 日期处理
 ├── fixtures/                 # 测试数据生成脚本
-└── public/                   # 静态资源
-    ├── css/                  # 全局样式
-    ├── js/                   # 全局 JS
-    └── vue-test/             # Vue 组件测试项目
+├── www/                      # Web 路由处理
+│   ├── planning.html                 # Vue SPA 入口 HTML
+│   └── planning.py                   # 提供 CSRF token 和用户会话
+├── public/                   # 静态资源
+│   ├── css/                  # 全局样式
+│   ├── js/                   # 全局 JS
+│   └── planning/             # Vue 构建输出目录
+│       └── assets/           # 编译后的 JS/CSS
+└── frontend/                 # Vue 3 前端源码（独立项目）
+    ├── src/
+    │   ├── pages/            # Vue 页面组件
+    │   │   ├── PlanningDashboard.vue  # 计划看板主页
+    │   │   └── Home.vue               # 备用首页
+    │   ├── router.js         # Vue Router 配置
+    │   └── main.js           # Vue 应用入口
+    ├── vite.config.js        # Vite 构建配置
+    └── package.json          # 前端依赖
 ```
 
 ### 关键设计模式
@@ -123,6 +195,7 @@ product_sales_planning/
 
 ### 数据流
 
+**传统 Frappe Page 数据流**：
 ```
 用户操作 (Page JS)
     ↓
@@ -135,6 +208,23 @@ API 调用 (frappe.call)
 Frappe ORM / SQL
     ↓
 MariaDB
+```
+
+**Vue SPA 数据流**：
+```
+用户访问 /planning
+    ↓
+www/planning.py 生成 HTML + 注入 CSRF token
+    ↓
+加载 Vue 应用 (public/planning/assets/index.js)
+    ↓
+Vue Router 路由到组件 (PlanningDashboard.vue)
+    ↓
+组件通过 frappe-ui 的 call() 调用 API
+    ↓
+白名单方法 (@frappe.whitelist)
+    ↓
+返回 JSON 数据到 Vue 组件
 ```
 
 ## 核心 DocType 说明
@@ -209,15 +299,32 @@ except Exception as e:
 
 ## 前端开发规范
 
-### Page 结构
+### 传统 Frappe Page 结构
 
 每个 Page 包含三个文件：
 - `page_name.json`: 页面配置
 - `page_name.js`: 前端逻辑
 - `page_name.py`: 后端 API
 
-### API 调用
+### Vue SPA 开发
 
+**组件开发**：
+- 组件位置：`frontend/src/pages/`
+- 使用 frappe-ui 组件库（已安装）
+- 路由配置：`frontend/src/router.js`
+
+**API 调用（Vue 中）**：
+```javascript
+import { call } from 'frappe-ui'
+
+// 调用 API
+const { data, error } = await call('product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data', {
+    store_id: store_id,
+    task_id: task_id
+})
+```
+
+**API 调用（传统 Page）**：
 ```javascript
 frappe.call({
     method: "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
@@ -235,8 +342,10 @@ frappe.call({
 
 ### UI 组件
 
-- **表格**: 使用 handsontable 进行大数据量展示和编辑
-- **图标**: 使用 Frappe 内置图标系统 以及 frappe ui组件 
+- **传统 Page 表格**: 使用 handsontable 进行大数据量展示和编辑
+- **传统 Page 图标**: 使用 Frappe 内置图标系统
+- **Vue SPA 组件**: 使用 frappe-ui 组件库（Button, Card, Input, Badge 等）
+- **Vue SPA 图标**: 使用 feather-icons（已集成在 frappe-ui 中） 
 
 ## 数据库操作最佳实践
 
@@ -353,6 +462,28 @@ bench --site [site-name] execute product_sales_planning.fixtures.create_store_as
 - 遵循 ESLint 规则
 - 使用 ES6+ 语法
 
+## Vue 前端开发注意事项
+
+### CSRF Token 处理
+- Vue SPA 通过 `www/planning.py` 自动注入 CSRF token
+- frappe-ui 的 `call()` 函数会自动处理 CSRF token
+- 开发环境可在 `site_config.json` 中设置 `"ignore_csrf": 1`
+
+### 构建和部署
+1. 修改 Vue 代码后，在 `frontend/` 目录运行 `yarn build`
+2. 构建产物自动输出到 `product_sales_planning/public/planning/`
+3. Frappe 会自动服务这些静态文件
+4. 生产环境访问 `/planning` 即可加载 Vue 应用
+
+### Vite 配置要点
+- `base`: 设置为 `/assets/product_sales_planning/planning/` 确保资源路径正确
+- `outDir`: 输出到 `../product_sales_planning/public/planning`
+- `rollupOptions`: 固定文件名，去除哈希值（便于 Frappe 引用）
+
+### Vue Router 配置
+- `history`: 使用 `createWebHistory('/planning/')`
+- 基础路径必须与 Vite 的 `base` 配置和 `website_route_rules` 匹配
+
 ## 重要提醒
 
 1. **不要写兼容代码**: 直接使用最新的 Frappe v15 API
@@ -360,13 +491,24 @@ bench --site [site-name] execute product_sales_planning.fixtures.create_store_as
 3. **优先使用 ORM**: 除非性能必要，否则不使用 Raw SQL
 4. **权限检查**: 所有 API 默认检查权限（`ignore_permissions=False`）
 5. **用中文回答**: 所有交互使用中文
-6. **每次有重大更新记得更新文档**：每次有重大更新及时修改更新CLAUDE.md文档 
+6. **每次有重大更新记得更新文档**：每次有重大更新及时修改更新CLAUDE.md文档
+7. **Vue 构建后需要清除缓存**: 运行 `bench --site [site-name] clear-cache` 确保加载最新资源 
 
 ## 页面路由
 
-- 计划看板: `/planning-dashboard`
-- 店铺详情: `/store-detail`
-- 数据查看: `/data-view`
+### 传统 Frappe Page 路由
+- 计划看板: `/app/planning-dashboard`
+- 店铺详情: `/app/store-detail`
+- 数据查看: `/app/data-view`
+
+### Vue SPA 路由
+- Vue 应用入口: `/planning` 或 `/planning/`
+- 计划看板: `/planning/` (Vue Router 根路径)
+
+**路由配置位置**：
+- Frappe Page 路由：`hooks.py` 中的 `page_routes`
+- Vue SPA 路由：`frontend/src/router.js`
+- Web 路由规则：`hooks.py` 中的 `website_route_rules`
 
 ## 相关文档
 
