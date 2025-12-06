@@ -5,8 +5,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, get_fullname
-import json
+from frappe.utils import now_datetime
 
 
 @frappe.whitelist()
@@ -428,7 +427,7 @@ def get_workflow_for_task_store(task_id, store_id):
 			},
 			"current_state": {
 				"status": tasks_store.status if tasks_store else "未开始",
-				"approval_status": tasks_store.approval_status if tasks_store else "待审批",
+				"approval_status": tasks_store.approval_status if tasks_store else None,
 				"current_step": tasks_store.current_approval_step if tasks_store else 0,
 				"can_edit": tasks_store.can_edit if tasks_store else 1,
 				"rejection_reason": tasks_store.rejection_reason if tasks_store else None

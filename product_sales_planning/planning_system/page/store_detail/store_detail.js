@@ -1593,8 +1593,15 @@ StorePlanningManager.prototype.update_approval_ui = function() {
     const data = this.approval_data;
 
     console.log('🔍 update_approval_ui called with data:', data);
+    console.log('🔍 Full approval_data structure:', JSON.stringify(data, null, 2));
 
-    if (!data || !data.workflow || !data.workflow.has_workflow) {
+    // ✅ 修复：正确访问嵌套的 data.data.workflow
+    const workflowData = data && data.data ? data.data.workflow : null;
+
+    console.log('🔍 workflowData:', workflowData);
+    console.log('🔍 has_workflow:', workflowData ? workflowData.has_workflow : 'workflowData is null');
+
+    if (!workflowData || workflowData.has_workflow === false) {
         // 没有审批流程，隐藏所有审批UI
         console.log('⚠️ 没有审批流程，显示所有操作按钮');
         this.wrapper.find('.approval-status-area').hide();
@@ -1613,9 +1620,10 @@ StorePlanningManager.prototype.update_approval_ui = function() {
         return;
     }
 
-    const currentState = data.workflow.current_state;
-    const canEdit = data.can_edit;
-    const canApprove = data.can_approve;
+    console.log('✅ 有审批流程，继续处理按钮显示逻辑');
+    const currentState = workflowData.current_state;
+    const canEdit = data.data.can_edit;
+    const canApprove = data.data.can_approve;
 
     console.log('📊 Current State:', {
         status: currentState.status,
@@ -1623,6 +1631,14 @@ StorePlanningManager.prototype.update_approval_ui = function() {
         current_step: currentState.current_step,
         can_edit: canEdit,
         can_approve: canApprove
+    });
+    console.log('📊 Detailed state check:', {
+        'status === "未开始"': currentState.status === '未开始',
+        'current_step === 0': currentState.current_step === 0,
+        'approval_status === "已驳回"': currentState.approval_status === '已驳回',
+        'approval_status value': currentState.approval_status,
+        'approval_status type': typeof currentState.approval_status,
+        'canEdit': canEdit
     });
 
     // 显示审批状态区域
@@ -1662,15 +1678,28 @@ StorePlanningManager.prototype.update_approval_ui = function() {
 
     // 控制按钮显示
     // 提交审批按钮：首次提交或退回后重新提交
+
+    // 调试日志：查看当前状态
+    console.log('🔍 审批状态调试:', {
+        status: currentState.status,
+        approval_status: currentState.approval_status,
+        current_step: currentState.current_step,
+        can_edit: canEdit,
+        approval_status_type: typeof currentState.approval_status
+    });
+
     if (currentState.approval_status === '已驳回' && canEdit) {
         // 被退回后，无论退回到哪一级，都允许重新提交
+        console.log('✅ 匹配条件1：已驳回状态');
         this.wrapper.find('.btn-submit-approval').show();
         this.wrapper.find('.btn-withdraw-approval').hide();
     } else if (currentState.status === '未开始' && currentState.current_step === 0) {
-        // 首次提交
+        // 首次提交（包括 approval_status 为 null/undefined 的情况）
+        console.log('✅ 匹配条件2：未开始状态');
         this.wrapper.find('.btn-submit-approval').show();
         this.wrapper.find('.btn-withdraw-approval').hide();
     } else {
+        console.log('❌ 不匹配任何条件，隐藏按钮');
         this.wrapper.find('.btn-submit-approval').hide();
     }
 
@@ -2024,7 +2053,10 @@ StorePlanningManager.prototype.reject_to_submitter = function() {
 StorePlanningManager.prototype.view_approval_history = function() {
     const data = this.approval_data;
 
-    if (!data || !data.history || data.history.length === 0) {
+    // ✅ 修复：正确访问嵌套的 data.data.history
+    const history = data && data.data ? data.data.history : null;
+
+    if (!history || history.length === 0) {
         frappe.msgprint('暂无审批历史');
         return;
     }
@@ -2032,7 +2064,7 @@ StorePlanningManager.prototype.view_approval_history = function() {
     // 构建审批历史HTML
     let historyHTML = '<div class="approval-history-timeline">';
 
-    data.history.forEach((item) => {
+    history.forEach((item) => {
         const actionClass = item.action === '通过' ? 'text-success' :
                            item.action === '提交' ? 'text-primary' : 'text-danger';
 
