@@ -31,7 +31,7 @@
             placeholder="选择店铺 (可多选)..."
             :options="options.stores"
             v-model="filters.store_ids"
-            multiple
+            :multiple="true"
             size="sm"
           />
         </div>
@@ -42,7 +42,7 @@
             placeholder="选择任务 (可多选)..."
             :options="options.tasks"
             v-model="filters.task_ids"
-            multiple
+            :multiple="true"
             size="sm"
           />
         </div>
@@ -198,12 +198,16 @@ const optionsResource = createResource({
 
 // 计算选项数据，适配 Autocomplete 格式
 const options = computed(() => {
-  const data = optionsResource.data || { stores: [], tasks: [] }
+  // 🔥 修复：确保数据存在且为数组
+  const data = optionsResource.data || {}
+  const stores = Array.isArray(data.stores) ? data.stores : []
+  const tasks = Array.isArray(data.tasks) ? data.tasks : []
+
   return {
-    stores: data.stores.map(s => ({ label: s.shop_name, value: s.name })),
-    tasks: data.tasks.map(t => ({ 
-      label: `${t.name} (${t.start_date || '无日期'})`, 
-      value: t.name 
+    stores: stores.map(s => ({ label: s.shop_name || s.name, value: s.name })),
+    tasks: tasks.map(t => ({
+      label: `${t.name} (${t.start_date || '无日期'})`,
+      value: t.name
     }))
   }
 })
