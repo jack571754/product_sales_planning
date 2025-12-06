@@ -32,7 +32,46 @@ bench --site [site-name] test product_sales_planning.planning_system.doctype.com
 # 代码质量检查
 ruff check .
 eslint .
+
+# 查看所有站点
+bench --site all list
+
+# 进入站点控制台（调试用）
+bench --site [site-name] console
 ```
+
+### Vue 前端开发命令
+
+项目包含独立的 Vue 3 frappe-ui前端应用（位于 `frontend/` 目录）：
+
+```bash
+# 进入前端目录
+cd frontend
+
+# 安装依赖
+yarn install
+# 或
+npm install
+
+# 启动开发服务器（运行在 8080 端口）
+yarn dev
+# 或
+npm run dev
+
+# 构建生产版本（输出到 ../product_sales_planning/public/frontend）
+yarn build
+# 或
+npm run build
+
+# 预览生产构建
+yarn preview
+```
+
+**重要配置**：
+- 开发环境需在 `site_config.json` 中添加 `"ignore_csrf": 1` 以避免 CSRF 错误
+- 开发服务器通过 Vite 代理到 Frappe 后端（默认 8000 端口）
+- 访问地址：`http://[site-name]:8080/frontend`
+- 生产环境路由基础路径：`/frontend`
 
 ### 开发工作流
 
@@ -197,8 +236,7 @@ frappe.call({
 ### UI 组件
 
 - **表格**: 使用 handsontable 进行大数据量展示和编辑
-- **样式**: 全局样式在 `public/css/common-styles.css`
-- **图标**: 使用 Frappe 内置图标系统
+- **图标**: 使用 Frappe 内置图标系统 以及 frappe ui组件 
 
 ## 数据库操作最佳实践
 
@@ -334,4 +372,4 @@ bench --site [site-name] execute product_sales_planning.fixtures.create_store_as
 
 - Frappe Framework 文档: https://frappeframework.com/docs
 - ERPNext 文档: https://docs.erpnext.com
-- 项目详细说明: 参考 `IFLOW.md`
+- Frappe ui 组件文档: https://ui.frappe.io/

@@ -37,7 +37,11 @@ api_methods = [
     # Data view APIs
     "product_sales_planning.planning_system.page.data_view.data_view.get_data_view",
     "product_sales_planning.planning_system.page.data_view.data_view.get_data_view_filter_options",
-    "product_sales_planning.planning_system.page.data_view.data_view.export_data_view"
+    "product_sales_planning.planning_system.page.data_view.data_view.export_data_view",
+    # Frappe UI Test APIs
+    "product_sales_planning.planning_system.page.frappe_ui_test.frappe_ui_test.get_form_options",
+    "product_sales_planning.planning_system.page.frappe_ui_test.frappe_ui_test.create_commodity_schedule",
+    "product_sales_planning.planning_system.page.frappe_ui_test.frappe_ui_test.validate_commodity_data"
 ]
 
 
@@ -283,6 +287,14 @@ app_include_js = "/assets/product_sales_planning/js/product_sales_planning.js"
 page_routes = [
     {"path": "planning-dashboard", "page": "planning_dashboard"},
     {"path": "store-detail", "page": "store_detail"},
-    {"path": "data-view", "page": "data_view"}
+    {"path": "data-view", "page": "data_view"},
+    {"path": "frappe-ui-test", "page": "frappe_ui_test"}
+]
+
+# Website Route Rules
+# ----------
+website_route_rules = [
+    {'from_route': '/planning/<path:app_path>', 'to_route': 'planning'},
+    {'from_route': '/planning', 'to_route': 'planning'},
 ]
 

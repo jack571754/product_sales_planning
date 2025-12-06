@@ -1725,7 +1725,7 @@ StorePlanningManager.prototype.update_approval_ui = function() {
     }
 
     // 审批历史按钮：有审批历史时显示
-    if (data.history && data.history.length > 0) {
+    if (data.data.history && data.data.history.length > 0) {
         this.wrapper.find('.btn-view-history').show();
     } else {
         this.wrapper.find('.btn-view-history').hide();
@@ -2076,7 +2076,13 @@ StorePlanningManager.prototype.view_approval_history = function() {
                 </div>
                 <div style="font-size: 12px; color: #666;">
                     <span>${item.approver || '系统'}</span>
-                    <span style="margin-left: 10px;">${frappe.datetime.str_to_user(item.action_time)}</span>
+                    <span style="margin-left: 10px;">${item.action_time ? (function() {
+                        try {
+                            return frappe.datetime.str_to_user(item.action_time);
+                        } catch (e) {
+                            return item.action_time;
+                        }
+                    })() : ''}</span>
                 </div>
                 ${item.comments ? `<div style="margin-top: 5px; font-size: 13px;">${item.comments}</div>` : ''}
             </div>

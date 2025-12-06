@@ -10,6 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@visactor/vtable": "^1.22.4"
+    "@visactor/vtable": "^1.22.4",
+    "frappe-ui": "^0.1.234",
+    "vue": "^3.4.21"
   }
 }
