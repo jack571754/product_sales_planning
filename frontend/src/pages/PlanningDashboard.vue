@@ -225,7 +225,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Button, Select, MultiSelect, FeatherIcon, createResource, Badge } from 'frappe-ui'
+
+// ==================== Router ====================
+const router = useRouter()
 
 // ==================== 状态管理 ====================
 const filters = ref({ store_ids: [], task_ids: [], approval_status: '' })
@@ -323,7 +327,10 @@ const switchTab = (tab) => {
 }
 
 const goToStoreDetail = (storeId, parentId) => {
-  window.location.href = `/app/store-detail?store_id=${storeId}&parent_id=${parentId}`
+  router.push({
+    name: 'StoreDetail',
+    params: { storeId, taskId: parentId }
+  })
 }
 
 // ==================== UI 辅助 ====================

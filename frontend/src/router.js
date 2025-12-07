@@ -18,6 +18,15 @@ const routes = [
         name: 'Demo',
         component: FrappeUIDemo,
       },
+      {
+        path: 'store-detail/:storeId/:taskId',
+        name: 'StoreDetail',
+        component: () => import('./pages/StoreDetail.vue'),
+        props: true,
+        meta: {
+          title: '店铺详情'
+        }
+      },
     ],
   },
 ]

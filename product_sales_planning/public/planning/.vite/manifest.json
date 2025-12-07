@@ -4,6 +4,9 @@
     "name": "index",
     "src": "index.html",
     "isEntry": true,
+    "dynamicImports": [
+      "src/pages/StoreDetail.vue"
+    ],
     "css": [
       "assets/index.css"
     ],
@@ -374,5 +377,17 @@
   "src/assets/Inter/Inter-ThinItalic.woff2": {
     "file": "assets/Inter-ThinItalic.woff2",
     "src": "src/assets/Inter/Inter-ThinItalic.woff2"
+  },
+  "src/pages/StoreDetail.vue": {
+    "file": "assets/StoreDetail.js",
+    "name": "StoreDetail",
+    "src": "src/pages/StoreDetail.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ],
+    "css": [
+      "assets/StoreDetail.css"
+    ]
   }
 }

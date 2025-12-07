@@ -69,6 +69,51 @@ def get_store_commodity_data(store_id=None, task_id=None, brand=None, category=N
 			search_term=search_term,
 			view_mode=view_mode
 		)
+
+		# 添加店铺和任务信息
+		if store_id:
+			store_info = frappe.get_value(
+				"Store List",
+				store_id,
+				["name", "shop_name", "store_type", "region"],
+				as_dict=True
+			)
+			result["store_info"] = store_info or {}
+		else:
+			result["store_info"] = {}
+
+		if task_id:
+			task_info = frappe.get_value(
+				"Schedule tasks",
+				task_id,
+				["name", "task_name", "task_type", "start_date", "end_date", "status"],
+				as_dict=True
+			)
+			result["task_info"] = task_info or {}
+		else:
+			result["task_info"] = {}
+
+		# 获取审批状态和编辑权限
+		if store_id and task_id:
+			from product_sales_planning.planning_system.doctype.approval_workflow.approval_api import check_can_edit
+
+			can_edit_result = check_can_edit(task_id, store_id)
+			result["can_edit"] = can_edit_result.get("can_edit", True)
+			result["edit_reason"] = can_edit_result.get("reason", "")
+
+			# 获取审批状态
+			tasks_store = frappe.db.get_value(
+				"Tasks Store",
+				{"parent": task_id, "store_name": store_id},
+				["approval_status", "status"],
+				as_dict=True
+			)
+			result["approval_status"] = tasks_store or {}
+		else:
+			result["can_edit"] = True
+			result["edit_reason"] = ""
+			result["approval_status"] = {}
+
 		# 直接返回结果，不包装（前端期望直接获取数据）
 		return result
 

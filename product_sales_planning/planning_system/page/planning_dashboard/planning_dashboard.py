@@ -225,17 +225,9 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
         # 提取 tab 参数
         current_tab = filters.pop('tab', 'pending') if isinstance(filters, dict) else 'pending'
 
-        # 🔥 添加日志打印
-        print(f"📥 [Backend] get_dashboard_data called")
-        print(f"📥 [Backend] filters: {filters}")
-        print(f"📥 [Backend] current_tab: {current_tab}")
-        print(f"📥 [Backend] search_text: {search_text}")
-        print(f"📥 [Backend] sort_by: {sort_by}")
-        frappe.logger().info(f"📥 [Backend] get_dashboard_data called")
-        frappe.logger().info(f"📥 [Backend] filters: {filters}")
-        frappe.logger().info(f"📥 [Backend] current_tab: {current_tab}")
-        frappe.logger().info(f"📥 [Backend] search_text: {search_text}")
-        frappe.logger().info(f"📥 [Backend] sort_by: {sort_by}")
+        # 日志记录（仅在调试模式下）
+        if frappe.conf.get("developer_mode"):
+            frappe.logger().debug(f"get_dashboard_data called: filters={filters}, tab={current_tab}")
 
         # 1. 基础统计
         stats = {
@@ -257,21 +249,15 @@ def get_dashboard_data(filters=None, search_text=None, sort_by=None, sort_order=
         if filters.get("plan_type"):
             parent_filters["type"] = filters["plan_type"]
 
-        # 🔥 新增：如果指定了任务筛选，直接过滤任务（支持多选）
+        # 任务筛选（支持多选）
         if filters.get("task_ids"):
             task_ids = filters["task_ids"]
-            frappe.logger().info(f"🔍 [Task Filter] Raw task_ids: {task_ids}, type: {type(task_ids)}")
             if isinstance(task_ids, str):
                 task_ids = json.loads(task_ids)
-                frappe.logger().info(f"🔍 [Task Filter] Parsed task_ids: {task_ids}")
             if task_ids and len(task_ids) > 0:
                 parent_filters["name"] = ["in", task_ids]
-                frappe.logger().info(f"🔍 [Task Filter] Applied filter: name IN {task_ids}")
         elif filters.get("task_id"):
             parent_filters["name"] = filters["task_id"]
-            frappe.logger().info(f"🔍 [Task Filter] Applied filter: name = {filters['task_id']}")
-
-        frappe.logger().info(f"🔍 [Parent Filters] Final parent_filters: {parent_filters}")
 
         parents = frappe.get_all(
             "Schedule tasks",
