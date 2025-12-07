@@ -1,0 +1,378 @@
+{
+  "index.html": {
+    "file": "assets/index.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "css": [
+      "assets/index.css"
+    ],
+    "assets": [
+      "assets/Inter-Thin.woff2",
+      "assets/Inter-Thin.woff",
+      "assets/Inter-ThinItalic.woff2",
+      "assets/Inter-ThinItalic.woff",
+      "assets/Inter-ExtraLight.woff2",
+      "assets/Inter-ExtraLight.woff",
+      "assets/Inter-ExtraLightItalic.woff2",
+      "assets/Inter-ExtraLightItalic.woff",
+      "assets/Inter-Light.woff2",
+      "assets/Inter-Light.woff",
+      "assets/Inter-LightItalic.woff2",
+      "assets/Inter-LightItalic.woff",
+      "assets/Inter-Regular.woff2",
+      "assets/Inter-Regular.woff",
+      "assets/Inter-Italic.woff2",
+      "assets/Inter-Italic.woff",
+      "assets/Inter-Medium.woff2",
+      "assets/Inter-Medium.woff",
+      "assets/Inter-MediumItalic.woff2",
+      "assets/Inter-MediumItalic.woff",
+      "assets/Inter-SemiBold.woff2",
+      "assets/Inter-SemiBold.woff",
+      "assets/Inter-SemiBoldItalic.woff2",
+      "assets/Inter-SemiBoldItalic.woff",
+      "assets/Inter-Bold.woff2",
+      "assets/Inter-Bold.woff",
+      "assets/Inter-BoldItalic.woff2",
+      "assets/Inter-BoldItalic.woff",
+      "assets/Inter-ExtraBold.woff2",
+      "assets/Inter-ExtraBold.woff",
+      "assets/Inter-ExtraBoldItalic.woff2",
+      "assets/Inter-ExtraBoldItalic.woff",
+      "assets/Inter-Black.woff2",
+      "assets/Inter-Black.woff",
+      "assets/Inter-BlackItalic.woff2",
+      "assets/Inter-BlackItalic.woff",
+      "assets/Inter.var.woff2",
+      "assets/Inter-Italic.var.woff2",
+      "assets/Inter-Thin2.woff2",
+      "assets/Inter-ThinItalic2.woff2",
+      "assets/Inter-ExtraLight2.woff2",
+      "assets/Inter-ExtraLightItalic2.woff2",
+      "assets/Inter-Light2.woff2",
+      "assets/Inter-LightItalic2.woff2",
+      "assets/Inter-Regular2.woff2",
+      "assets/Inter-Italic2.woff2",
+      "assets/Inter-Medium2.woff2",
+      "assets/Inter-MediumItalic2.woff2",
+      "assets/Inter-SemiBold2.woff2",
+      "assets/Inter-SemiBoldItalic2.woff2",
+      "assets/Inter-Bold2.woff2",
+      "assets/Inter-BoldItalic2.woff2",
+      "assets/Inter-ExtraBold2.woff2",
+      "assets/Inter-ExtraBoldItalic2.woff2",
+      "assets/Inter-Black2.woff2",
+      "assets/Inter-BlackItalic2.woff2",
+      "assets/Inter-DisplayThin.woff2",
+      "assets/Inter-DisplayThinItalic.woff2",
+      "assets/Inter-DisplayExtraLight.woff2",
+      "assets/Inter-DisplayExtraLightItalic.woff2",
+      "assets/Inter-DisplayLight.woff2",
+      "assets/Inter-DisplayLightItalic.woff2",
+      "assets/Inter-DisplayItalic.woff2",
+      "assets/Inter-DisplayMedium.woff2",
+      "assets/Inter-DisplayMediumItalic.woff2",
+      "assets/Inter-DisplaySemiBold.woff2",
+      "assets/Inter-DisplaySemiBoldItalic.woff2",
+      "assets/Inter-DisplayBold.woff2",
+      "assets/Inter-DisplayBoldItalic.woff2",
+      "assets/Inter-DisplayExtraBold.woff2",
+      "assets/Inter-DisplayExtraBoldItalic.woff2",
+      "assets/Inter-DisplayBlack.woff2",
+      "assets/Inter-DisplayBlackItalic.woff2"
+    ]
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-Black.woff2": {
+    "file": "assets/Inter-Black2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-Black.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-BlackItalic.woff2": {
+    "file": "assets/Inter-BlackItalic2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-BlackItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-Bold.woff2": {
+    "file": "assets/Inter-Bold2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-Bold.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-BoldItalic.woff2": {
+    "file": "assets/Inter-BoldItalic2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-BoldItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayBlack.woff2": {
+    "file": "assets/Inter-DisplayBlack.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayBlack.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayBlackItalic.woff2": {
+    "file": "assets/Inter-DisplayBlackItalic.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayBlackItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayBold.woff2": {
+    "file": "assets/Inter-DisplayBold.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayBold.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayBoldItalic.woff2": {
+    "file": "assets/Inter-DisplayBoldItalic.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayBoldItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayExtraBold.woff2": {
+    "file": "assets/Inter-DisplayExtraBold.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayExtraBold.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayExtraBoldItalic.woff2": {
+    "file": "assets/Inter-DisplayExtraBoldItalic.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayExtraBoldItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayExtraLight.woff2": {
+    "file": "assets/Inter-DisplayExtraLight.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayExtraLight.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayExtraLightItalic.woff2": {
+    "file": "assets/Inter-DisplayExtraLightItalic.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayExtraLightItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayItalic.woff2": {
+    "file": "assets/Inter-DisplayItalic.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayLight.woff2": {
+    "file": "assets/Inter-DisplayLight.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayLight.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayLightItalic.woff2": {
+    "file": "assets/Inter-DisplayLightItalic.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayLightItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayMedium.woff2": {
+    "file": "assets/Inter-DisplayMedium.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayMedium.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayMediumItalic.woff2": {
+    "file": "assets/Inter-DisplayMediumItalic.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayMediumItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplaySemiBold.woff2": {
+    "file": "assets/Inter-DisplaySemiBold.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplaySemiBold.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplaySemiBoldItalic.woff2": {
+    "file": "assets/Inter-DisplaySemiBoldItalic.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplaySemiBoldItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayThin.woff2": {
+    "file": "assets/Inter-DisplayThin.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayThin.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayThinItalic.woff2": {
+    "file": "assets/Inter-DisplayThinItalic.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-DisplayThinItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-ExtraBold.woff2": {
+    "file": "assets/Inter-ExtraBold2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-ExtraBold.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-ExtraBoldItalic.woff2": {
+    "file": "assets/Inter-ExtraBoldItalic2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-ExtraBoldItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-ExtraLight.woff2": {
+    "file": "assets/Inter-ExtraLight2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-ExtraLight.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-ExtraLightItalic.woff2": {
+    "file": "assets/Inter-ExtraLightItalic2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-ExtraLightItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-Italic.var.woff2": {
+    "file": "assets/Inter-Italic.var.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-Italic.var.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-Italic.woff2": {
+    "file": "assets/Inter-Italic2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-Italic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-Light.woff2": {
+    "file": "assets/Inter-Light2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-Light.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-LightItalic.woff2": {
+    "file": "assets/Inter-LightItalic2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-LightItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-Medium.woff2": {
+    "file": "assets/Inter-Medium2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-Medium.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-MediumItalic.woff2": {
+    "file": "assets/Inter-MediumItalic2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-MediumItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-Regular.woff2": {
+    "file": "assets/Inter-Regular2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-Regular.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-SemiBold.woff2": {
+    "file": "assets/Inter-SemiBold2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-SemiBold.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-SemiBoldItalic.woff2": {
+    "file": "assets/Inter-SemiBoldItalic2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-SemiBoldItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-Thin.woff2": {
+    "file": "assets/Inter-Thin2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-Thin.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter-ThinItalic.woff2": {
+    "file": "assets/Inter-ThinItalic2.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter-ThinItalic.woff2"
+  },
+  "node_modules/frappe-ui/src/fonts/Inter/Inter.var.woff2": {
+    "file": "assets/Inter.var.woff2",
+    "src": "node_modules/frappe-ui/src/fonts/Inter/Inter.var.woff2"
+  },
+  "src/assets/Inter/Inter-Black.woff": {
+    "file": "assets/Inter-Black.woff",
+    "src": "src/assets/Inter/Inter-Black.woff"
+  },
+  "src/assets/Inter/Inter-Black.woff2": {
+    "file": "assets/Inter-Black.woff2",
+    "src": "src/assets/Inter/Inter-Black.woff2"
+  },
+  "src/assets/Inter/Inter-BlackItalic.woff": {
+    "file": "assets/Inter-BlackItalic.woff",
+    "src": "src/assets/Inter/Inter-BlackItalic.woff"
+  },
+  "src/assets/Inter/Inter-BlackItalic.woff2": {
+    "file": "assets/Inter-BlackItalic.woff2",
+    "src": "src/assets/Inter/Inter-BlackItalic.woff2"
+  },
+  "src/assets/Inter/Inter-Bold.woff": {
+    "file": "assets/Inter-Bold.woff",
+    "src": "src/assets/Inter/Inter-Bold.woff"
+  },
+  "src/assets/Inter/Inter-Bold.woff2": {
+    "file": "assets/Inter-Bold.woff2",
+    "src": "src/assets/Inter/Inter-Bold.woff2"
+  },
+  "src/assets/Inter/Inter-BoldItalic.woff": {
+    "file": "assets/Inter-BoldItalic.woff",
+    "src": "src/assets/Inter/Inter-BoldItalic.woff"
+  },
+  "src/assets/Inter/Inter-BoldItalic.woff2": {
+    "file": "assets/Inter-BoldItalic.woff2",
+    "src": "src/assets/Inter/Inter-BoldItalic.woff2"
+  },
+  "src/assets/Inter/Inter-ExtraBold.woff": {
+    "file": "assets/Inter-ExtraBold.woff",
+    "src": "src/assets/Inter/Inter-ExtraBold.woff"
+  },
+  "src/assets/Inter/Inter-ExtraBold.woff2": {
+    "file": "assets/Inter-ExtraBold.woff2",
+    "src": "src/assets/Inter/Inter-ExtraBold.woff2"
+  },
+  "src/assets/Inter/Inter-ExtraBoldItalic.woff": {
+    "file": "assets/Inter-ExtraBoldItalic.woff",
+    "src": "src/assets/Inter/Inter-ExtraBoldItalic.woff"
+  },
+  "src/assets/Inter/Inter-ExtraBoldItalic.woff2": {
+    "file": "assets/Inter-ExtraBoldItalic.woff2",
+    "src": "src/assets/Inter/Inter-ExtraBoldItalic.woff2"
+  },
+  "src/assets/Inter/Inter-ExtraLight.woff": {
+    "file": "assets/Inter-ExtraLight.woff",
+    "src": "src/assets/Inter/Inter-ExtraLight.woff"
+  },
+  "src/assets/Inter/Inter-ExtraLight.woff2": {
+    "file": "assets/Inter-ExtraLight.woff2",
+    "src": "src/assets/Inter/Inter-ExtraLight.woff2"
+  },
+  "src/assets/Inter/Inter-ExtraLightItalic.woff": {
+    "file": "assets/Inter-ExtraLightItalic.woff",
+    "src": "src/assets/Inter/Inter-ExtraLightItalic.woff"
+  },
+  "src/assets/Inter/Inter-ExtraLightItalic.woff2": {
+    "file": "assets/Inter-ExtraLightItalic.woff2",
+    "src": "src/assets/Inter/Inter-ExtraLightItalic.woff2"
+  },
+  "src/assets/Inter/Inter-Italic.woff": {
+    "file": "assets/Inter-Italic.woff",
+    "src": "src/assets/Inter/Inter-Italic.woff"
+  },
+  "src/assets/Inter/Inter-Italic.woff2": {
+    "file": "assets/Inter-Italic.woff2",
+    "src": "src/assets/Inter/Inter-Italic.woff2"
+  },
+  "src/assets/Inter/Inter-Light.woff": {
+    "file": "assets/Inter-Light.woff",
+    "src": "src/assets/Inter/Inter-Light.woff"
+  },
+  "src/assets/Inter/Inter-Light.woff2": {
+    "file": "assets/Inter-Light.woff2",
+    "src": "src/assets/Inter/Inter-Light.woff2"
+  },
+  "src/assets/Inter/Inter-LightItalic.woff": {
+    "file": "assets/Inter-LightItalic.woff",
+    "src": "src/assets/Inter/Inter-LightItalic.woff"
+  },
+  "src/assets/Inter/Inter-LightItalic.woff2": {
+    "file": "assets/Inter-LightItalic.woff2",
+    "src": "src/assets/Inter/Inter-LightItalic.woff2"
+  },
+  "src/assets/Inter/Inter-Medium.woff": {
+    "file": "assets/Inter-Medium.woff",
+    "src": "src/assets/Inter/Inter-Medium.woff"
+  },
+  "src/assets/Inter/Inter-Medium.woff2": {
+    "file": "assets/Inter-Medium.woff2",
+    "src": "src/assets/Inter/Inter-Medium.woff2"
+  },
+  "src/assets/Inter/Inter-MediumItalic.woff": {
+    "file": "assets/Inter-MediumItalic.woff",
+    "src": "src/assets/Inter/Inter-MediumItalic.woff"
+  },
+  "src/assets/Inter/Inter-MediumItalic.woff2": {
+    "file": "assets/Inter-MediumItalic.woff2",
+    "src": "src/assets/Inter/Inter-MediumItalic.woff2"
+  },
+  "src/assets/Inter/Inter-Regular.woff": {
+    "file": "assets/Inter-Regular.woff",
+    "src": "src/assets/Inter/Inter-Regular.woff"
+  },
+  "src/assets/Inter/Inter-Regular.woff2": {
+    "file": "assets/Inter-Regular.woff2",
+    "src": "src/assets/Inter/Inter-Regular.woff2"
+  },
+  "src/assets/Inter/Inter-SemiBold.woff": {
+    "file": "assets/Inter-SemiBold.woff",
+    "src": "src/assets/Inter/Inter-SemiBold.woff"
+  },
+  "src/assets/Inter/Inter-SemiBold.woff2": {
+    "file": "assets/Inter-SemiBold.woff2",
+    "src": "src/assets/Inter/Inter-SemiBold.woff2"
+  },
+  "src/assets/Inter/Inter-SemiBoldItalic.woff": {
+    "file": "assets/Inter-SemiBoldItalic.woff",
+    "src": "src/assets/Inter/Inter-SemiBoldItalic.woff"
+  },
+  "src/assets/Inter/Inter-SemiBoldItalic.woff2": {
+    "file": "assets/Inter-SemiBoldItalic.woff2",
+    "src": "src/assets/Inter/Inter-SemiBoldItalic.woff2"
+  },
+  "src/assets/Inter/Inter-Thin.woff": {
+    "file": "assets/Inter-Thin.woff",
+    "src": "src/assets/Inter/Inter-Thin.woff"
+  },
+  "src/assets/Inter/Inter-Thin.woff2": {
+    "file": "assets/Inter-Thin.woff2",
+    "src": "src/assets/Inter/Inter-Thin.woff2"
+  },
+  "src/assets/Inter/Inter-ThinItalic.woff": {
+    "file": "assets/Inter-ThinItalic.woff",
+    "src": "src/assets/Inter/Inter-ThinItalic.woff"
+  },
+  "src/assets/Inter/Inter-ThinItalic.woff2": {
+    "file": "assets/Inter-ThinItalic.woff2",
+    "src": "src/assets/Inter/Inter-ThinItalic.woff2"
+  }
+}

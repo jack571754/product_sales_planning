@@ -1,16 +1,30 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
-import { getProxyOptions } from 'frappe-ui/src/utils/vite-dev-server'
+import Icons from 'unplugin-icons/vite' // <--- 新增引用
 import { webserver_port } from '../../../sites/common_site_config.json'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [vue()],
-  base: '/assets/product_sales_planning/planning/',  // 设置基础路径（推荐使用完整路径）
+  plugins: [
+    vue(),
+    Icons({ // <--- 新增插件配置
+      compiler: 'vue3',
+      autoInstall: true
+    })
+  ],
+  // 基础路径，指向静态资源目录
+  base: '/assets/product_sales_planning/planning/',
   server: {
     port: 8080,
-    proxy: getProxyOptions({ port: webserver_port }),
+    // 手动配置代理
+    proxy: {
+      '^/(app|api|assets|files|private)': {
+        target: `http://127.0.0.1:${webserver_port || 8000}`,
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
   resolve: {
     alias: {
@@ -18,19 +32,29 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: `../product_sales_planning/public/planning`,  // 输出到 /planning 目录
+    outDir: '../product_sales_planning/public/planning', // 输出目录
     emptyOutDir: true,
+    manifest: true, // 生成 manifest.json
     target: 'es2015',
+    commonjsOptions: {
+      include: [/frappe-ui/, /node_modules/], // 确保处理 CommonJS 依赖
+    },
+    // Rollup 配置
     rollupOptions: {
       output: {
-        // 固定文件名，去除哈希值
-        entryFileNames: 'assets/[name].js',
+        // 使用固定文件名，便于 HTML 引用
+        entryFileNames: 'assets/index.js',
         chunkFileNames: 'assets/[name].js',
         assetFileNames: 'assets/[name].[ext]'
       }
     }
   },
   optimizeDeps: {
-    include: ['frappe-ui > feather-icons', 'showdown', 'engine.io-client'],
+    include: [
+      'frappe-ui > feather-icons', 
+      'showdown', 
+      'engine.io-client',
+      'frappe-ui' // 显式添加 frappe-ui 优化
+    ],
   },
 })

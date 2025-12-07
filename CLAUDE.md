@@ -63,6 +63,16 @@ yarn build
 }
 ```
 
+### 确定当前站点
+
+```bash
+# 查看当前活动站点
+cat sites/currentsite.txt
+
+# 如果需要切换站点，可以使用
+bench use [site-name]
+```
+
 ## 开发环境与命令
 
 ### 常用 Bench 命令
@@ -131,6 +141,11 @@ yarn preview
 - 生产环境访问地址：`http://[site-name]:8000/planning`
 - 生产环境路由基础路径：`/assets/product_sales_planning/planning/`
 - 构建输出目录：`product_sales_planning/public/planning/`
+
+**注意事项**：
+- 构建输出的文件（`product_sales_planning/public/planning/assets/*`）是自动生成的，不应手动编辑
+- 字体文件（Inter-*.woff2）会在首次构建时自动复制
+- `.vite/` 目录是 Vite 的缓存目录，可以安全删除
 
 ### 开发工作流
 
@@ -449,6 +464,13 @@ bench --site [site-name] execute product_sales_planning.fixtures.create_store_as
 - 检查必填字段是否完整
 - 查看错误日志：`bench --site [site-name] logs`
 
+### Vue 前端构建问题
+- 如果构建后页面显示空白，检查浏览器控制台是否有 CORS 或 CSRF 错误
+- 如果样式丢失，确认 Tailwind CSS 配置正确扫描了 frappe-ui 组件
+- 如果组件无法导入，尝试删除 `node_modules` 和 `yarn.lock`，重新安装依赖
+- 清除 Vite 缓存：`rm -rf frontend/.vite` 和 `rm -rf frontend/node_modules/.vite`
+- 如果修改后页面没有更新，运行 `bench --site [site-name] clear-cache` 清除 Frappe 缓存
+
 ## 代码风格
 
 ### Python
@@ -462,27 +484,210 @@ bench --site [site-name] execute product_sales_planning.fixtures.create_store_as
 - 遵循 ESLint 规则
 - 使用 ES6+ 语法
 
+## Git 工作流
+
+### 忽略的文件
+以下文件/目录会自动生成，已在 `.gitignore` 中配置：
+- `product_sales_planning/public/planning/assets/*` (Vue 构建输出)
+- `product_sales_planning/public/planning/.vite/` (Vite 缓存)
+- `frontend/node_modules/` (Node 依赖)
+- `frontend/dist/` (临时构建目录)
+
+### 提交前检查
+```bash
+# 确保 pre-commit hooks 通过
+git add .
+git commit -m "your message"  # pre-commit 会自动运行
+
+# 如果 pre-commit 失败，修复问题后重新提交
+# pre-commit 会自动运行 ruff, eslint, prettier, pyupgrade
+
+# 手动运行代码检查
+ruff check .
+eslint frontend/src
+```
+
+### 分支策略
+- 主分支：`master`
+- 开发分支：`develop`
+- 功能分支：从 `develop` 创建，命名格式 `feature/功能名称`
+- 修复分支：从 `develop` 创建，命名格式 `fix/问题描述`
+
 ## Vue 前端开发注意事项
 
+### frappe-ui 集成核心要点
+
+**1. 初始化配置 (frontend/src/main.js)**
+```javascript
+import { setConfig, frappeRequest, resourcesPlugin } from 'frappe-ui'
+
+// 关键：配置 frappe-ui 使用 Frappe 的请求处理器
+setConfig('resourceFetcher', frappeRequest)
+
+// 注册资源插件（用于 createResource 等功能）
+app.use(resourcesPlugin)
+```
+
+**2. 组件导入和使用**
+```javascript
+// 按需导入 frappe-ui 组件
+import { Button, MultiSelect, Avatar, FeatherIcon } from 'frappe-ui'
+
+// 全局注册或局部使用
+app.component('Button', Button)
+```
+
+**3. API 调用方式**
+```javascript
+import { call } from 'frappe-ui'
+
+// 调用 Frappe 白名单方法
+const { data, error } = await call('your.api.method', {
+    param1: value1,
+    param2: value2
+})
+```
+
+**4. 样式导入 (frontend/src/index.css)**
+```css
+@import './assets/Inter/inter.css';  /* frappe-ui 使用 Inter 字体 */
+@import 'frappe-ui/style.css';       /* frappe-ui 核心样式 */
+```
+
+**5. Tailwind CSS 配置 (frontend/tailwind.config.js)**
+```javascript
+// 关键：使用 frappe-ui 的 Tailwind 预设
+presets: [
+  require(path.join(__dirname, 'node_modules/frappe-ui/src/utils/tailwind.config'))
+],
+// 确保扫描 frappe-ui 组件
+content: [
+  "./node_modules/frappe-ui/src/components/**/*.{vue,js,ts,jsx,tsx}",
+]
+```
+
+**6. Vite 配置优化 (frontend/vite.config.js)**
+```javascript
+// 优化 frappe-ui 依赖
+optimizeDeps: {
+  include: [
+    'frappe-ui > feather-icons',
+    'frappe-ui'
+  ],
+},
+// 处理 CommonJS 依赖
+commonjsOptions: {
+  include: [/frappe-ui/, /node_modules/],
+}
+```
+
+**7. 图标使用**
+```vue
+<template>
+  <!-- 使用 frappe-ui 的 FeatherIcon 组件 -->
+  <FeatherIcon name="check-square" class="w-4 h-4" />
+</template>
+```
+
+**8. 插槽使用示例**
+```vue
+<MultiSelect :options="options" v-model="state">
+  <!-- 自定义选项显示 -->
+  <template #option="{ option }">
+    <Avatar :image="option.img" :label="option.label" />
+    {{ option.label }}
+  </template>
+
+  <!-- 自定义底部操作栏 -->
+  <template #footer="{ clearAll, selectAll }">
+    <Button @click="clearAll">清空</Button>
+    <Button @click="selectAll">全选</Button>
+  </template>
+</MultiSelect>
+```
+
 ### CSRF Token 处理
-- Vue SPA 通过 `www/planning.py` 自动注入 CSRF token
-- frappe-ui 的 `call()` 函数会自动处理 CSRF token
-- 开发环境可在 `site_config.json` 中设置 `"ignore_csrf": 1`
+
+**服务端注入 (www/planning.py)**
+```python
+def get_context(context):
+    csrf_token = frappe.sessions.get_csrf_token()
+    frappe.db.commit()
+    context.csrf_token = csrf_token
+    context.boot = {
+        "user": frappe.session.user,
+        "csrf_token": csrf_token,
+    }
+```
+
+**前端接收 (www/planning.html)**
+```html
+<meta name="csrf-token" content="{{ csrf_token }}">
+<script>
+  window.csrf_token = "{{ csrf_token }}";
+  window.boot = {{ boot | tojson }};
+</script>
+```
+
+- frappe-ui 的 `call()` 和 `frappeRequest` 会自动从 `window.csrf_token` 读取
+- 开发环境可在 `site_config.json` 中设置 `"ignore_csrf": 1` 跳过验证
+
+### 用户认证检查 (App.vue)
+
+```javascript
+import { call } from 'frappe-ui'
+
+onMounted(async () => {
+  const response = await call('frappe.auth.get_logged_user')
+  if (!response || response === 'Guest') {
+    // 未登录则重定向到登录页
+    window.location.href = '/login?redirect-to=/planning'
+  }
+})
+```
 
 ### 构建和部署
-1. 修改 Vue 代码后，在 `frontend/` 目录运行 `yarn build`
-2. 构建产物自动输出到 `product_sales_planning/public/planning/`
-3. Frappe 会自动服务这些静态文件
-4. 生产环境访问 `/planning` 即可加载 Vue 应用
+
+1. **开发模式**：
+   ```bash
+   cd frontend
+   yarn dev  # 启动 Vite 开发服务器（8080 端口）
+   ```
+   - 访问：`http://[site-name]:8080/planning/`
+   - Vite 自动代理 API 请求到 Frappe 后端（8000 端口）
+
+2. **生产构建**：
+   ```bash
+   cd frontend
+   yarn build  # 构建到 ../product_sales_planning/public/planning/
+   bench --site [site-name] clear-cache  # 清除缓存
+   ```
+   - 访问：`http://[site-name]:8000/planning`
+   - 静态资源路径：`/assets/product_sales_planning/planning/`
 
 ### Vite 配置要点
+
 - `base`: 设置为 `/assets/product_sales_planning/planning/` 确保资源路径正确
 - `outDir`: 输出到 `../product_sales_planning/public/planning`
 - `rollupOptions`: 固定文件名，去除哈希值（便于 Frappe 引用）
+- `proxy`: 代理 Frappe API 请求（开发环境）
 
 ### Vue Router 配置
+
 - `history`: 使用 `createWebHistory('/planning/')`
 - 基础路径必须与 Vite 的 `base` 配置和 `website_route_rules` 匹配
+- 路由配置位置：`frontend/src/router.js`
+
+### 路由规则配置 (hooks.py)
+
+```python
+website_route_rules = [
+    {'from_route': '/planning/<path:app_path>', 'to_route': 'planning'},
+    {'from_route': '/planning', 'to_route': 'planning'},
+]
+```
+
+这确保所有 `/planning/*` 路径都由 Vue Router 处理（SPA 路由）
 
 ## 重要提醒
 
