@@ -900,3 +900,5 @@ defineEmits(['toggle-collapse'])          // 定义 emits
 - Frappe ui 组件文档: https://ui.frappe.io/
 - Vue 3 文档: https://vuejs.org/
 - Tailwind CSS 文档: https://tailwindcss.com/
+- frappe-ui 源码: https://github.com/frappe/frappe-ui
+- frappe-ui MD apps/product_sales_planning/frappe-ui集成使用.md
