@@ -193,11 +193,22 @@ product_sales_planning/
 └── frontend/                 # Vue 3 前端源码（独立项目）
     ├── src/
     │   ├── pages/            # Vue 页面组件
-    │   │   ├── PlanningDashboard.vue  # 计划看板主页
+    │   │   ├── PlanningDashboard.vue  # 计划看板主页（使用 createResource 加载数据）
+    │   │   ├── FrappeUIDemo.vue       # frappe-ui 组件演示页
     │   │   └── Home.vue               # 备用首页
-    │   ├── router.js         # Vue Router 配置
-    │   └── main.js           # Vue 应用入口
-    ├── vite.config.js        # Vite 构建配置
+    │   ├── layouts/          # 布局组件
+    │   │   └── MainLayout.vue         # 主布局（侧边栏+顶栏+内容区，支持主题切换）
+    │   ├── components/       # 可复用组件
+    │   │   ├── Sidebar.vue            # 侧边栏导航（可折叠，状态持久化）
+    │   │   ├── TopBar.vue             # 顶部栏（汉堡菜单+用户菜单）
+    │   │   └── UserMenu.vue           # 用户菜单（头像+下拉，使用 Dropdown 组件）
+    │   ├── router.js         # Vue Router 配置（嵌套路由）
+    │   ├── main.js           # Vue 应用入口（frappe-ui 初始化）
+    │   ├── App.vue           # 根组件（用户认证检查）
+    │   └── index.css         # 全局样式（Tailwind + frappe-ui）
+    ├── vite.config.js        # Vite 构建配置（代理、优化、构建输出）
+    ├── tailwind.config.js    # Tailwind CSS 配置（使用 frappe-ui 预设）
+    ├── postcss.config.js     # PostCSS 配置
     └── package.json          # 前端依赖
 ```
 
@@ -207,6 +218,11 @@ product_sales_planning/
 2. **工具类模式**: 通用功能（验证、响应格式化）抽取到 `utils/` 中复用
 3. **子表关联**: Schedule Tasks 通过 `set_store` 子表关联多个店铺，形成一对多关系
 4. **审批工作流**: 基于角色、店铺属性或店铺范围的多级审批流程
+5. **Vue 组件化架构**:
+   - **布局组件** (MainLayout.vue): 提供统一的页面框架，包含侧边栏、顶栏和内容区
+   - **可复用组件** (Sidebar, TopBar, UserMenu): 封装通用 UI 逻辑，支持状态持久化
+   - **页面组件** (PlanningDashboard): 业务页面，使用 frappe-ui 的 `createResource` 进行数据管理
+   - **嵌套路由**: 使用 Vue Router 的嵌套路由，所有页面共享 MainLayout 布局
 
 ### 数据流
 
@@ -323,10 +339,19 @@ except Exception as e:
 
 ### Vue SPA 开发
 
-**组件开发**：
-- 组件位置：`frontend/src/pages/`
-- 使用 frappe-ui 组件库（已安装）
-- 路由配置：`frontend/src/router.js`
+**组件架构**：
+- **页面组件** (`frontend/src/pages/`): 业务页面，如 PlanningDashboard.vue
+- **布局组件** (`frontend/src/layouts/`): 页面布局框架，如 MainLayout.vue
+- **可复用组件** (`frontend/src/components/`): 通用 UI 组件，如 Sidebar.vue、TopBar.vue
+- **路由配置** (`frontend/src/router.js`): Vue Router 嵌套路由配置
+- **应用入口** (`frontend/src/main.js`): frappe-ui 初始化和全局配置
+
+**组件开发最佳实践**：
+1. **使用 `<script setup>` 语法**: 更简洁的 Composition API 写法
+2. **使用 frappe-ui 的 `createResource`**: 声明式数据加载，自动处理加载状态
+3. **状态持久化**: 使用 `localStorage` 保存用户偏好（如侧边栏折叠状态）
+4. **响应式设计**: 使用 Tailwind CSS 的响应式类（sm:, md:, lg:）
+5. **组件通信**: 使用 `defineEmits` 和 `defineProps` 进行父子组件通信
 
 **API 调用（Vue 中）**：
 ```javascript
@@ -538,6 +563,8 @@ app.component('Button', Button)
 ```
 
 **3. API 调用方式**
+
+方式一：使用 `call` 函数（适合一次性调用）
 ```javascript
 import { call } from 'frappe-ui'
 
@@ -546,6 +573,27 @@ const { data, error } = await call('your.api.method', {
     param1: value1,
     param2: value2
 })
+```
+
+方式二：使用 `createResource`（推荐，适合需要重复加载的数据）
+```javascript
+import { createResource } from 'frappe-ui'
+
+// 创建资源对象
+const dashboardData = createResource({
+  url: 'product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data',
+  params: () => ({
+    filters: JSON.stringify(filters.value),
+    search_text: searchText.value
+  }),
+  auto: true  // 自动加载
+})
+
+// 访问数据和状态
+dashboardData.data      // 返回的数据
+dashboardData.loading   // 加载状态
+dashboardData.error     // 错误信息
+dashboardData.reload()  // 重新加载
 ```
 
 **4. 样式导入 (frontend/src/index.css)**
@@ -708,15 +756,147 @@ website_route_rules = [
 
 ### Vue SPA 路由
 - Vue 应用入口: `/planning` 或 `/planning/`
-- 计划看板: `/planning/` (Vue Router 根路径)
+- 计划看板: `/planning/` (Vue Router 根路径，使用 MainLayout 布局)
+- 组件演示: `/planning/demo` (frappe-ui 组件演示页)
 
 **路由配置位置**：
 - Frappe Page 路由：`hooks.py` 中的 `page_routes`
-- Vue SPA 路由：`frontend/src/router.js`
+- Vue SPA 路由：`frontend/src/router.js`（嵌套路由结构）
 - Web 路由规则：`hooks.py` 中的 `website_route_rules`
+
+**嵌套路由结构**：
+```javascript
+{
+  path: '/',
+  component: MainLayout,  // 父级布局组件
+  children: [
+    { path: '', component: PlanningDashboard },  // 默认子路由
+    { path: 'demo', component: FrappeUIDemo }    // 演示页面
+  ]
+}
+```
+
+## Vue 前端组件详解
+
+### MainLayout.vue（主布局组件）
+
+**功能**：
+- 提供统一的页面框架，包含侧边栏、顶栏和主内容区
+- 管理侧边栏折叠状态（支持 localStorage 持久化）
+- 管理深色模式状态（支持 localStorage 持久化）
+- 使用 `<router-view />` 渲染子路由页面
+
+**关键特性**：
+- 使用 `ref` 管理响应式状态
+- 使用 `watch` 监听状态变化并持久化到 localStorage
+- 使用 `onMounted` 从 localStorage 恢复用户偏好
+
+**文件位置**: `frontend/src/layouts/MainLayout.vue`
+
+### Sidebar.vue（侧边栏组件）
+
+**功能**：
+- 显示导航菜单（计划看板、组件演示等）
+- 支持折叠/展开状态（通过 `collapsed` prop 控制）
+- 使用 Vue Router 进行页面导航
+- 显示应用 Logo 和图标
+
+**关键特性**：
+- 使用 `router-link` 的 `v-slot` 实现自定义激活样式
+- 使用 Tailwind CSS 实现响应式宽度（折叠时 w-16，展开时 w-64）
+- 自定义滚动条样式
+
+**文件位置**: `frontend/src/components/Sidebar.vue`
+
+### TopBar.vue（顶部栏组件）
+
+**功能**：
+- 左侧显示汉堡菜单按钮（用于切换侧边栏）
+- 右侧显示用户菜单组件
+
+**关键特性**：
+- 使用 `defineEmits` 向父组件发射事件
+- 简洁的组件设计，职责单一
+
+**文件位置**: `frontend/src/components/TopBar.vue`
+
+### UserMenu.vue（用户菜单组件）
+
+**功能**：
+- 显示当前登录用户的头像和信息
+- 提供下拉菜单（用户设置、切换主题、登出）
+- 使用 frappe-ui 的 `createResource` 加载用户数据
+
+**关键特性**：
+- 使用 `Dropdown` 组件实现下拉菜单
+- 使用 `Avatar` 组件显示用户头像
+- 从 `window.boot.user` 获取当前用户信息
+- 调用 `frappe.auth.logout` 实现登出功能
+
+**文件位置**: `frontend/src/components/UserMenu.vue`
+
+### PlanningDashboard.vue（计划看板页面）
+
+**功能**：
+- 显示计划任务列表（待完成/已完成）
+- 提供搜索、筛选、排序功能
+- 显示统计卡片（进行中计划、已结束计划等）
+- 支持分页显示
+
+**关键特性**：
+- 使用 `createResource` 加载看板数据和筛选选项
+- 使用 `computed` 计算派生状态（统计卡片、分页数据）
+- 使用 `watch` 监听筛选条件变化并自动刷新数据
+- 使用防抖（debounce）优化搜索性能
+- 点击任务卡片跳转到传统 Frappe Page（店铺详情页）
+
+**数据流**：
+```
+用户操作（搜索/筛选/排序）
+    ↓
+更新响应式状态（filters, searchText, sortBy）
+    ↓
+watch 监听到变化
+    ↓
+调用 dashboardData.reload()
+    ↓
+createResource 重新请求后端 API
+    ↓
+更新 dashboardData.data
+    ↓
+computed 重新计算（filteredTasks, paginatedTasks）
+    ↓
+视图自动更新
+```
+
+**文件位置**: `frontend/src/pages/PlanningDashboard.vue`
+
+### 组件通信模式
+
+**父子组件通信**：
+```vue
+<!-- 父组件 (MainLayout.vue) -->
+<Sidebar
+  :collapsed="sidebarCollapsed"           <!-- Props 向下传递 -->
+  @toggle-collapse="toggleSidebar"        <!-- Events 向上发射 -->
+/>
+
+<!-- 子组件 (Sidebar.vue) -->
+<script setup>
+defineProps({ collapsed: Boolean })       // 接收 props
+defineEmits(['toggle-collapse'])          // 定义 emits
+</script>
+```
+
+**跨组件状态共享**：
+- 使用 localStorage 持久化用户偏好（侧边栏折叠、深色模式）
+- 使用 Vue Router 共享路由状态
+- 使用 `window.boot` 共享全局配置（用户信息、CSRF token）
 
 ## 相关文档
 
 - Frappe Framework 文档: https://frappeframework.com/docs
 - ERPNext 文档: https://docs.erpnext.com
 - Frappe ui 组件文档: https://ui.frappe.io/
+- Vue 3 文档: https://vuejs.org/
+- Tailwind CSS 文档: https://tailwindcss.com/
