@@ -316,16 +316,35 @@ export function useStoreDetail(storeId, taskId) {
 	const generateColumns = () => {
 		const columns = [
 			{
+				data: 'name1',
+				title: '商品名称',
+				readOnly: true,
+				width: 250,
+				className: 'htLeft htMiddle'
+			},
+			{
 				data: 'code',
-				title: '商品编码',
+				title: '编码',
 				readOnly: true,
 				width: 120
 			},
 			{
-				data: 'name1',
-				title: '商品名称',
+				data: 'specifications',
+				title: '规格',
 				readOnly: true,
-				width: 200
+				width: 100
+			},
+			{
+				data: 'brand',
+				title: '品牌',
+				readOnly: true,
+				width: 100
+			},
+			{
+				data: 'category',
+				title: '类别',
+				readOnly: true,
+				width: 100
 			}
 		]
 
@@ -350,7 +369,7 @@ export function useStoreDetail(storeId, taskId) {
 	 * 生成 Handsontable 的表头
 	 */
 	const generateHeaders = () => {
-		const headers = ['商品编码', '商品名称']
+		const headers = ['商品名称', '编码', '规格', '品牌', '类别']
 		months.value.forEach(month => {
 			headers.push(month)
 		})
@@ -363,8 +382,11 @@ export function useStoreDetail(storeId, taskId) {
 	const transformDataForTable = () => {
 		return paginatedCommodities.value.map(item => {
 			const row = {
+				name1: item.commodity_name || item.name1,
 				code: item.commodity_code || item.code,
-				name1: item.commodity_name || item.name1
+				specifications: item.specifications || '',
+				brand: item.brand || '',
+				category: item.category || ''
 			}
 
 			// 添加月份数据

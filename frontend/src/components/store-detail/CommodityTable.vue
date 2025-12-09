@@ -102,16 +102,28 @@ defineExpose({
 	width: 100%;
 	height: 100%;
 	overflow: auto;
+	position: relative;
+	z-index: 1; /* 设置较低的 z-index */
 }
 
 .handsontable-container {
 	width: 100%;
 	min-height: 400px;
+	position: relative;
+	z-index: 1; /* 确保表格容器在较低层级 */
 }
 
 /* Handsontable 样式调整 */
 :deep(.handsontable) {
 	font-size: 13px;
+	position: relative;
+	z-index: 1;
+}
+
+/* 确保 Handsontable 的下拉菜单和右键菜单不会超过对话框 */
+:deep(.handsontable .htDropdownMenu),
+:deep(.handsontable .htContextMenu) {
+	z-index: 100 !important; /* 低于对话框的 9999 */
 }
 
 :deep(.handsontable td) {

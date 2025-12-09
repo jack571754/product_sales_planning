@@ -322,26 +322,30 @@ const loadProducts = async () => {
 
 // 切换产品选择
 const toggleProduct = (productCode) => {
-	if (selectedProducts.value.has(productCode)) {
-		selectedProducts.value.delete(productCode)
+	const newSet = new Set(selectedProducts.value)
+	if (newSet.has(productCode)) {
+		newSet.delete(productCode)
 	} else {
-		selectedProducts.value.add(productCode)
+		newSet.add(productCode)
 	}
+	selectedProducts.value = newSet
 }
 
 // 切换全选
 const toggleSelectAll = () => {
+	const newSet = new Set(selectedProducts.value)
 	if (isAllSelected.value) {
 		// 取消全选当前页
 		paginatedProducts.value.forEach(p => {
-			selectedProducts.value.delete(p.code)
+			newSet.delete(p.code)
 		})
 	} else {
 		// 全选当前页
 		paginatedProducts.value.forEach(p => {
-			selectedProducts.value.add(p.code)
+			newSet.add(p.code)
 		})
 	}
+	selectedProducts.value = newSet
 }
 
 // 处理添加
