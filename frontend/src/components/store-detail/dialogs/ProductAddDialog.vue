@@ -364,11 +364,11 @@ const handleAdd = async () => {
 		)
 
 		if (response && response.status === 'success') {
-			alert(`成功添加 ${response.inserted_count} 个商品${response.skipped_count > 0 ? `，跳过 ${response.skipped_count} 个已存在的商品` : ''}`)
+			alert(`成功添加 ${response.count} 个商品${response.skipped > 0 ? `，跳过 ${response.skipped} 个已存在的商品` : ''}`)
 			emit('success')
 			handleClose()
 		} else {
-			alert(response?.message || '添加失败')
+			alert(response?.msg || response?.message || '添加失败')
 		}
 	} catch (error) {
 		console.error('添加失败:', error)
