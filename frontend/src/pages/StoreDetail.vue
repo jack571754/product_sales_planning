@@ -29,6 +29,39 @@
 				<div class="flex items-center gap-2">
 					<button
 						v-if="canEdit"
+						@click="showImportDialog = true"
+						class="px-4 py-2 text-blue-700 bg-blue-50 rounded-md shadow hover:bg-blue-100 transition-colors"
+						title="单品导入"
+					>
+						<svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+						</svg>
+						单品导入
+					</button>
+					<button
+						v-if="canEdit"
+						@click="showAddDialog = true"
+						class="px-4 py-2 text-purple-700 bg-purple-50 rounded-md shadow hover:bg-purple-100 transition-colors"
+						title="添加商品"
+					>
+						<svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+						</svg>
+						添加商品
+					</button>
+					<button
+						@click="handleExport"
+						:disabled="exporting"
+						class="px-4 py-2 text-green-700 bg-green-50 rounded-md shadow hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+						title="导出Excel"
+					>
+						<svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+						</svg>
+						<span v-if="exporting">导出中...</span>
+						<span v-else>导出Excel</span>
+					</button>
+					<button
 						@click="handleRefresh"
 						class="px-4 py-2 text-gray-700 bg-white rounded-md shadow hover:bg-gray-50 transition-colors"
 						title="刷新数据"
@@ -87,24 +120,45 @@
 			<PaginationControls
 				:current-page="pagination.currentPage"
 				:page-size="pagination.pageSize"
-				:total-items="filteredCommodities.length"
+				:total-items="totalCount"
 				:total-pages="totalPages"
 				:page-size-options="pagination.pageSizeOptions"
 				@update:current-page="updatePagination({ currentPage: $event })"
 				@update:page-size="updatePagination({ pageSize: $event })"
 			/>
 		</div>
+
+		<!-- 产品导入对话框 -->
+		<ProductImportDialog
+			:show="showImportDialog"
+			:store-id="storeId"
+			:task-id="taskId"
+			@close="showImportDialog = false"
+			@success="handleImportSuccess"
+		/>
+
+		<!-- 产品添加对话框 -->
+		<ProductAddDialog
+			:show="showAddDialog"
+			:store-id="storeId"
+			:task-id="taskId"
+			:existing-products="filteredCommodities"
+			@close="showAddDialog = false"
+			@success="handleImportSuccess"
+		/>
 	</div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStoreDetail } from '../composables/useStoreDetail'
 import CommodityTable from '../components/store-detail/CommodityTable.vue'
 import FilterPanel from '../components/store-detail/FilterPanel.vue'
 import StatsCards from '../components/store-detail/StatsCards.vue'
 import PaginationControls from '../components/store-detail/PaginationControls.vue'
+import ProductImportDialog from '../components/store-detail/dialogs/ProductImportDialog.vue'
+import ProductAddDialog from '../components/store-detail/dialogs/ProductAddDialog.vue'
 
 // Props
 const props = defineProps({
@@ -134,6 +188,7 @@ const {
 	approvalStatus,
 	statistics,
 	totalPages,
+	totalCount,
 	loading,
 	error,
 	filterOptions,
@@ -142,10 +197,16 @@ const {
 	updatePagination,
 	saveMonthQuantity,
 	batchSaveChanges,
+	exportToExcel,
 	generateColumns,
 	generateHeaders,
 	transformDataForTable
 } = useStoreDetail(props.storeId, props.taskId)
+
+// UI 状态
+const showImportDialog = ref(false)
+const showAddDialog = ref(false)
+const exporting = ref(false)
 
 // 返回看板
 const goBack = () => {
@@ -171,6 +232,29 @@ const handleDataChange = async (changes, source) => {
 			console.error('保存失败:', result.message)
 			// 可以显示错误提示
 		}
+	}
+}
+
+// 处理导入成功
+const handleImportSuccess = async () => {
+	console.log('导入成功，刷新数据')
+	await refreshData()
+}
+
+// 处理导出
+const handleExport = async () => {
+	exporting.value = true
+	try {
+		const result = await exportToExcel()
+		if (result.success) {
+			console.log(result.message)
+			// 可以显示成功提示
+		} else {
+			console.error('导出失败:', result.message)
+			alert(result.message)
+		}
+	} finally {
+		exporting.value = false
 	}
 }
 </script>

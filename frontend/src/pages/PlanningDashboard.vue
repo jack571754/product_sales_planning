@@ -46,7 +46,7 @@
               variant="solid"
               theme="gray"
               class="w-full md:w-auto"
-              @click="applyFilters"
+              @click.stop="applyFilters"
               :loading="dashboardData.loading"
             >
               <template #prefix><FeatherIcon name="search" class="h-4 w-4" /></template>
@@ -57,7 +57,7 @@
               variant="subtle"
               theme="gray"
               class="w-full md:w-auto"
-              @click="clearFilters"
+              @click.stop="clearFilters"
             >
               重置
             </Button>
@@ -224,7 +224,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button, Select, MultiSelect, FeatherIcon, createResource, Badge } from 'frappe-ui'
 
@@ -308,12 +308,22 @@ const tabs = computed(() => [
 ])
 
 // ==================== 操作逻辑 ====================
+const isLoading = ref(false)
+
 const applyFilters = () => {
+  if (isLoading.value) return
+  isLoading.value = true
+
   dashboardData.reload()
   allTabsCount.reload()
+
+  setTimeout(() => {
+    isLoading.value = false
+  }, 500)
 }
 
 const clearFilters = () => {
+  if (isLoading.value) return
   filters.value = { store_ids: [], task_ids: [], approval_status: '' }
   currentTab.value = 'pending'
   applyFilters()
@@ -351,6 +361,12 @@ const getApprovalStatusTheme = (status) => {
     if (['审核', '待审批', 'Pending'].some(k => status?.includes(k))) return 'orange'
     return 'gray'
 }
+
+// ==================== 响应式监听 ====================
+// 监听 currentTab 变化，自动刷新数据
+watch(currentTab, () => {
+  dashboardData.reload()
+})
 
 // ==================== 生命周期 ====================
 onMounted(() => {

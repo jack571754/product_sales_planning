@@ -1,14 +1,14 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
-import Icons from 'unplugin-icons/vite' // <--- 新增引用
+import Icons from 'unplugin-icons/vite'
 import { webserver_port } from '../../../sites/common_site_config.json'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
-    Icons({ // <--- 新增插件配置
+    Icons({
       compiler: 'vue3',
       autoInstall: true
     })

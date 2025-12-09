@@ -380,6 +380,91 @@ def update_month_quantity(store_id, task_id, code, month, quantity):
 
 
 @frappe.whitelist()
+def batch_update_quantities(store_id, task_id, updates):
+	"""批量更新多个产品的多个月份的数量"""
+	try:
+		from product_sales_planning.utils.date_utils import get_month_first_day
+
+		# 解析参数
+		updates = parse_json_param(updates, "更新列表")
+		validate_required_params(
+			{"store_id": store_id, "task_id": task_id},
+			["store_id", "task_id"]
+		)
+
+		updated_count = 0
+		created_count = 0
+		errors = []
+
+		for update in updates:
+			try:
+				code = update.get("code")
+				month = update.get("month")
+				quantity = update.get("quantity")
+
+				if not code or not month:
+					errors.append(f"缺少必要参数: code={code}, month={month}")
+					continue
+
+				# 验证数量
+				try:
+					quantity = int(quantity)
+					if quantity < 0:
+						errors.append(f"产品 {code} 月份 {month}: 数量必须为正整数")
+						continue
+				except (ValueError, TypeError):
+					errors.append(f"产品 {code} 月份 {month}: 数量格式错误")
+					continue
+
+				# 构造日期
+				sub_date = get_month_first_day(month)
+
+				# 查找记录
+				filters = {
+					"store_id": store_id,
+					"task_id": task_id,
+					"code": code,
+					"sub_date": sub_date
+				}
+
+				existing = frappe.db.get_value("Commodity Schedule", filters, "name")
+
+				if existing:
+					frappe.db.set_value("Commodity Schedule", existing, "quantity", quantity)
+					updated_count += 1
+				else:
+					new_doc = frappe.new_doc("Commodity Schedule")
+					new_doc.store_id = store_id
+					new_doc.task_id = task_id
+					new_doc.code = code
+					new_doc.quantity = quantity
+					new_doc.sub_date = sub_date
+					new_doc.insert()
+					created_count += 1
+
+			except Exception as inner_e:
+				errors.append(f"产品 {code} 月份 {month}: {str(inner_e)}")
+
+		frappe.db.commit()
+
+		msg = f"成功更新 {updated_count} 条，创建 {created_count} 条"
+		if errors:
+			msg += f"，{len(errors)} 条失败"
+
+		return success_response(
+			message=msg,
+			updated=updated_count,
+			created=created_count,
+			errors=errors[:10]
+		)
+
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error(title="批量更新数量失败", message=str(e))
+		return error_response(message=str(e))
+
+
+@frappe.whitelist()
 def download_import_template(task_id=None):
 	"""生成并下载Excel导入模板"""
 	try:
@@ -833,4 +918,49 @@ def get_approval_status(task_id, store_id):
 
 	except Exception as e:
 		frappe.log_error(title="获取审批状态失败", message=str(e))
+		return error_response(message=str(e))
+
+
+@frappe.whitelist()
+def get_product_list_for_dialog(store_id=None, task_id=None):
+	"""获取产品列表用于添加商品对话框"""
+	try:
+		# 获取所有产品
+		products = frappe.get_all(
+			"Product List",
+			fields=["name", "code", "name1", "brand", "category", "specifications"],
+			order_by="code asc",
+			limit_page_length=1000
+		)
+
+		# 获取已添加的商品编码（如果提供了 store_id 和 task_id）
+		existing_codes = set()
+		if store_id and task_id:
+			existing = frappe.get_all(
+				"Commodity Schedule",
+				filters={"store_id": store_id, "task_id": task_id},
+				fields=["code"],
+				pluck="code"
+			)
+			existing_codes = set(existing)
+
+		# 格式化产品数据，添加 commodity_code 和 commodity_name 字段以兼容前端
+		formatted_products = []
+		for product in products:
+			formatted_products.append({
+				"name": product.name,
+				"code": product.code,
+				"commodity_code": product.code,  # 兼容字段
+				"commodity_name": product.name1,  # 兼容字段
+				"name1": product.name1,
+				"brand": product.brand or "",
+				"category": product.category or "",
+				"specifications": product.specifications or "",
+				"is_added": product.code in existing_codes
+			})
+
+		return success_response(data=formatted_products)
+
+	except Exception as e:
+		frappe.log_error(title="获取产品列表失败", message=str(e))
 		return error_response(message=str(e))

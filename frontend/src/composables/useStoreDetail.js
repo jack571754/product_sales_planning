@@ -43,13 +43,20 @@ export function useStoreDetail(storeId, taskId) {
 
 	// ==================== API 资源 ====================
 
-	// 加载商品数据
+	// 加载商品数据（使用服务端分页）
 	const commodityData = createResource({
 		url: 'product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data',
 		params: () => ({
 			store_id: storeId,
 			task_id: taskId,
-			view_mode: 'multi'
+			view_mode: 'multi',
+			// 服务端分页参数
+			start: (pagination.value.currentPage - 1) * pagination.value.pageSize,
+			page_length: pagination.value.pageSize,
+			// 筛选参数
+			search_term: filters.value.search || null,
+			brand: filters.value.brand || null,
+			category: filters.value.category || null
 		}),
 		auto: true,
 		transform: (data) => {
@@ -64,7 +71,8 @@ export function useStoreDetail(storeId, taskId) {
 					task_info: data.task_info || {},
 					can_edit: data.can_edit !== undefined ? data.can_edit : true,
 					edit_reason: data.edit_reason || '',
-					approval_status: data.approval_status || {}
+					approval_status: data.approval_status || {},
+					total_count: data.total_count || 0 // 服务端返回的总记录数
 				}
 			}
 			return {
@@ -74,7 +82,8 @@ export function useStoreDetail(storeId, taskId) {
 				task_info: {},
 				can_edit: false,
 				edit_reason: '',
-				approval_status: {}
+				approval_status: {},
+				total_count: 0
 			}
 		}
 	})
@@ -128,44 +137,24 @@ export function useStoreDetail(storeId, taskId) {
 		return commodityData.data?.approval_status || {}
 	})
 
-	// 筛选后的商品数据
+	// 总记录数（从服务端获取）
+	const totalCount = computed(() => {
+		return commodityData.data?.total_count || 0
+	})
+
+	// 筛选后的商品数据（服务端分页，直接使用返回的数据）
 	const filteredCommodities = computed(() => {
-		let result = rawCommodities.value
-
-		// 搜索筛选
-		if (filters.value.search) {
-			const searchLower = filters.value.search.toLowerCase()
-			result = result.filter(item => {
-				return (
-					(item.code || '').toLowerCase().includes(searchLower) ||
-					(item.name1 || '').toLowerCase().includes(searchLower)
-				)
-			})
-		}
-
-		// 机制筛选
-		if (filters.value.mechanism) {
-			result = result.filter(item => item.mechanism === filters.value.mechanism)
-		}
-
-		// 分类筛选
-		if (filters.value.category) {
-			result = result.filter(item => item.category === filters.value.category)
-		}
-
-		return result
+		return rawCommodities.value
 	})
 
-	// 分页后的商品数据
+	// 分页后的商品数据（服务端分页，直接使用返回的数据）
 	const paginatedCommodities = computed(() => {
-		const start = (pagination.value.currentPage - 1) * pagination.value.pageSize
-		const end = start + pagination.value.pageSize
-		return filteredCommodities.value.slice(start, end)
+		return rawCommodities.value
 	})
 
-	// 总页数
+	// 总页数（基于服务端返回的总记录数）
 	const totalPages = computed(() => {
-		return Math.ceil(filteredCommodities.value.length / pagination.value.pageSize)
+		return Math.ceil(totalCount.value / pagination.value.pageSize) || 1
 	})
 
 	// 统计信息
@@ -213,6 +202,8 @@ export function useStoreDetail(storeId, taskId) {
 		filters.value = { ...filters.value, ...newFilters }
 		// 重置到第一页
 		pagination.value.currentPage = 1
+		// 重新加载数据（服务端分页）
+		commodityData.reload()
 	}
 
 	/**
@@ -221,6 +212,8 @@ export function useStoreDetail(storeId, taskId) {
 	 */
 	const updatePagination = (newPagination) => {
 		pagination.value = { ...pagination.value, ...newPagination }
+		// 重新加载数据（服务端分页）
+		commodityData.reload()
 	}
 
 	/**
@@ -292,6 +285,32 @@ export function useStoreDetail(storeId, taskId) {
 	}
 
 	/**
+	 * 导出数据到 Excel
+	 */
+	const exportToExcel = async () => {
+		try {
+			const response = await call(
+				'product_sales_planning.planning_system.page.store_detail.store_detail.export_commodity_data',
+				{
+					store_id: storeId,
+					task_id: taskId
+				}
+			)
+
+			if (response && response.status === 'success') {
+				// 打开下载链接
+				window.open(response.file_url, '_blank')
+				return { success: true, message: `成功导出 ${response.record_count} 条记录` }
+			} else {
+				return { success: false, message: response?.message || '导出失败' }
+			}
+		} catch (error) {
+			console.error('导出失败:', error)
+			return { success: false, message: error.message || '导出失败' }
+		}
+	}
+
+	/**
 	 * 生成 Handsontable 的列配置
 	 */
 	const generateColumns = () => {
@@ -344,8 +363,8 @@ export function useStoreDetail(storeId, taskId) {
 	const transformDataForTable = () => {
 		return paginatedCommodities.value.map(item => {
 			const row = {
-				code: item.code,
-				name1: item.name1
+				code: item.commodity_code || item.code,
+				name1: item.commodity_name || item.name1
 			}
 
 			// 添加月份数据
@@ -358,14 +377,6 @@ export function useStoreDetail(storeId, taskId) {
 			return row
 		})
 	}
-
-	// ==================== 监听器 ====================
-
-	// 监听筛选条件变化
-	watch(filters, () => {
-		// 筛选变化时重置到第一页
-		pagination.value.currentPage = 1
-	}, { deep: true })
 
 	// ==================== 返回 ====================
 
@@ -388,6 +399,7 @@ export function useStoreDetail(storeId, taskId) {
 		// 统计
 		statistics,
 		totalPages,
+		totalCount,
 
 		// 加载状态
 		loading: computed(() => commodityData.loading),
@@ -402,6 +414,7 @@ export function useStoreDetail(storeId, taskId) {
 		updatePagination,
 		saveMonthQuantity,
 		batchSaveChanges,
+		exportToExcel,
 		generateColumns,
 		generateHeaders,
 		transformDataForTable
