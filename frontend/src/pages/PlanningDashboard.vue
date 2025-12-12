@@ -246,13 +246,13 @@ const extractValue = (val) => typeof val === 'object' && val !== null ? val.valu
 
 // 1. 筛选选项
 const filterOptions = createResource({
-  url: 'product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_filter_options',
+  url: 'product_sales_planning.api.v1.dashboard.get_filter_options',
   auto: true
 })
 
 // 2. 看板数据 (使用 makeParams 保证响应式)
 const dashboardData = createResource({
-  url: 'product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data',
+  url: 'product_sales_planning.api.v1.dashboard.get_dashboard_data',
   makeParams() {
     return {
       filters: JSON.stringify({
@@ -268,7 +268,7 @@ const dashboardData = createResource({
 
 // 3. 全局统计 (tab 无关)
 const allTabsCount = createResource({
-  url: 'product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data',
+  url: 'product_sales_planning.api.v1.dashboard.get_dashboard_data',
   makeParams() {
     return {
       filters: JSON.stringify({

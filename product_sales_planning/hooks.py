@@ -9,39 +9,50 @@ app_license = "mit"
 # ------------------
 
 
+# API方法白名单 - 重构后的API路径
 api_methods = [
-    "product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.update_line_item",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.insert_commodity_schedule",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.bulk_insert_commodity_schedule",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.batch_update_quantity",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.batch_delete_items",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.batch_delete_by_codes",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.get_filter_options",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.apply_mechanisms",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.import_commodity_data",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.download_import_template",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.update_month_quantity",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.import_mechanism_excel",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.download_mechanism_template",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.batch_update_month_quantities",
-    # Approval workflow APIs
-    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.submit_for_approval",
-    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.approve_task_store",
-    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.withdraw_approval",
-    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.get_approval_history",
-    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.get_workflow_for_task_store",
-    "product_sales_planning.planning_system.doctype.approval_workflow.approval_api.check_can_edit",
-    "product_sales_planning.planning_system.page.store_detail.store_detail.get_approval_status",
-    # Data view APIs
-    "product_sales_planning.planning_system.page.data_view.data_view.get_data_view",
-    "product_sales_planning.planning_system.page.data_view.data_view.get_data_view_filter_options",
-    "product_sales_planning.planning_system.page.data_view.data_view.export_data_view",
-    # Frappe UI Test APIs
-    "product_sales_planning.planning_system.page.frappe_ui_test.frappe_ui_test.get_form_options",
-    "product_sales_planning.planning_system.page.frappe_ui_test.frappe_ui_test.create_commodity_schedule",
-    "product_sales_planning.planning_system.page.frappe_ui_test.frappe_ui_test.validate_commodity_data"
+    # Dashboard APIs
+    "product_sales_planning.api.v1.dashboard.get_dashboard_data",
+    "product_sales_planning.api.v1.dashboard.get_filter_options",
+    
+    # Commodity APIs
+    "product_sales_planning.api.v1.commodity.get_store_commodity_data",
+    "product_sales_planning.api.v1.commodity.bulk_insert_commodity_schedule",
+    "product_sales_planning.api.v1.commodity.batch_update_quantity",
+    "product_sales_planning.api.v1.commodity.batch_delete_items",
+    "product_sales_planning.api.v1.commodity.batch_delete_by_codes",
+    "product_sales_planning.api.v1.commodity.update_line_item",
+    "product_sales_planning.api.v1.commodity.update_month_quantity",
+    "product_sales_planning.api.v1.commodity.batch_update_month_quantities",
+    "product_sales_planning.api.v1.commodity.get_product_list_for_dialog",
+    
+    # Store APIs
+    "product_sales_planning.api.v1.store.get_filter_options",
+    "product_sales_planning.api.v1.store.get_tasks_store_status",
+    
+    # Approval APIs
+    "product_sales_planning.api.v1.approval.submit_for_approval",
+    "product_sales_planning.api.v1.approval.approve_task_store",
+    "product_sales_planning.api.v1.approval.withdraw_approval",
+    "product_sales_planning.api.v1.approval.get_approval_history",
+    "product_sales_planning.api.v1.approval.get_workflow_for_task_store",
+    "product_sales_planning.api.v1.approval.check_can_edit",
+    "product_sales_planning.api.v1.approval.get_approval_status",
+    
+    # Data View APIs
+    "product_sales_planning.api.v1.data_view.get_data_view",
+    "product_sales_planning.api.v1.data_view.get_data_view_filter_options",
+    "product_sales_planning.api.v1.data_view.export_data_view",
+    
+    # Import/Export APIs
+    "product_sales_planning.api.v1.import_export.download_import_template",
+    "product_sales_planning.api.v1.import_export.import_commodity_data",
+    "product_sales_planning.api.v1.import_export.export_commodity_data",
+    "product_sales_planning.api.v1.import_export.download_mechanism_template",
+    "product_sales_planning.api.v1.import_export.import_mechanism_excel",
+    
+    # Mechanism APIs
+    "product_sales_planning.api.v1.mechanism.apply_mechanisms",
 ]
 
 
@@ -282,14 +293,9 @@ app_include_js = "/assets/product_sales_planning/js/product_sales_planning.js"
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
-# Page Routes
+# Page Routes - 已移除Frappe Page，改用Vue前端
 # ----------
-page_routes = [
-    {"path": "planning-dashboard", "page": "planning_dashboard"},
-    {"path": "store-detail", "page": "store_detail"},
-    {"path": "data-view", "page": "data_view"},
-    {"path": "frappe-ui-test", "page": "frappe_ui_test"}
-]
+# page_routes = []
 
 # Website Route Rules
 # ----------

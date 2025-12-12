@@ -1,1 +1,0 @@
-from .store_detail import get_store_commodity_data

@@ -23,155 +23,80 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个基于 Frappe Framework (v15) 开发的产品销售规划系统，用于管理商品计划、店铺分配和审批流程。系统支持月度常规计划(MON)和专项促销活动(PRO)的创建、审批和执行跟踪。
+基于 Frappe Framework v15 的产品销售规划系统，管理商品计划、店铺分配和多级审批流程。支持月度常规计划(MON)和专项促销活动(PRO)。
 
-### 双前端架构
+### 核心架构特点：双前端系统
 
-本项目采用**双前端架构**，同时支持两种前端技术栈：
+**关键决策**：项目采用双前端架构，根据场景选择技术栈：
 
-1. **传统 Frappe Page**（位于 `planning_system/page/`）
-   - 使用 Frappe 内置的 Page 机制
-   - 适合需要深度集成 Frappe Desk 的页面
-   - 示例：planning_dashboard, store_detail, data_view
+1. **传统 Frappe Page** (`planning_system/page/`)
+   - 深度集成 Frappe Desk，使用 handsontable 处理大数据量表格
+   - 页面：planning_dashboard, store_detail, data_view
+   - 路由：`/app/page-name`
 
-2. **Vue 3 SPA**（位于 `frontend/`）
-   - 独立的 Vue 3 + frappe-ui 单页应用
-   - 使用 Vite 构建，支持现代前端开发体验
-   - 通过 `/planning` 路由访问
-   - 适合需要复杂交互和现代 UI 的页面
+2. **Vue 3 SPA** (`frontend/`)
+   - 现代 UI 框架：Vue 3 + frappe-ui + Vite + Tailwind CSS
+   - 独立开发服务器（8080端口），生产环境通过 `/planning` 访问
+   - 构建输出：`product_sales_planning/public/planning/`
+   - 路由：`/planning/*`（由 Vue Router 处理）
 
-两种前端共享相同的后端 API（通过 `@frappe.whitelist` 装饰器暴露）。
+**共享后端**：两种前端调用相同的 `@frappe.whitelist` API，统一响应格式（`utils/response_utils.py`）。
 
-## 安装和初始设置
+## 快速开始
 
-### 安装应用
+### 安装
 
 ```bash
-# 克隆仓库到 bench apps 目录
 cd $PATH_TO_YOUR_BENCH
 bench get-app $URL_OF_THIS_REPO --branch develop
-
-# 在站点上安装应用
 bench --site [site-name] install-app product_sales_planning
 
-# 安装 pre-commit hooks（用于代码质量检查）
+# 安装代码质量检查工具
 cd apps/product_sales_planning
 pre-commit install
-```
 
-### 初始化 Vue 前端
-
-```bash
-# 进入前端目录并安装依赖
-cd apps/product_sales_planning/frontend
-yarn install
-# 或
-npm install
-
-# 首次构建（生成生产资源）
-yarn build
+# 初始化 Vue 前端
+cd frontend && yarn install && yarn build
 ```
 
 ### 开发环境配置
 
-在站点的 `site_config.json` 中添加以下配置（用于开发）：
-
+**必需配置**：在 `site_config.json` 中添加（跳过 CSRF 验证）：
 ```json
-{
-  "ignore_csrf": 1
-}
+{"ignore_csrf": 1}
 ```
 
-### 确定当前站点
+**确定当前站点**：`cat sites/currentsite.txt` 或 `bench use [site-name]`
 
+## 常用命令速查
+
+### 开发服务器
 ```bash
-# 查看当前活动站点
-cat sites/currentsite.txt
-
-# 如果需要切换站点，可以使用
-bench use [site-name]
+bench start                                    # 启动 Frappe 开发服务器
+cd frontend && yarn dev                        # 启动 Vue 开发服务器（8080端口）
 ```
 
-## 开发环境与命令
-
-### 常用 Bench 命令
-
+### 数据库和缓存
 ```bash
-# 启动开发服务器
-bench start
-
-# 数据库迁移（修改 DocType 后必须执行）
-bench --site [site-name] migrate
-
-# 构建前端资源（修改 JS/CSS 后执行）
-bench build --app product_sales_planning
-
-# 清除缓存
-bench --site [site-name] clear-cache
-
-# 运行测试
-bench --site [site-name] test product_sales_planning
-
-# 运行单个测试
-bench --site [site-name] test product_sales_planning.planning_system.doctype.commodity_schedule.test_commodity_schedule
-
-# 代码质量检查
-ruff check .
-eslint .
-
-# 查看所有站点
-bench --site all list
-
-# 进入站点控制台（调试用）
-bench --site [site-name] console
+bench --site [site-name] migrate               # 数据库迁移（修改 DocType 后必须执行）
+bench --site [site-name] clear-cache           # 清除缓存（Vue 构建后必须执行）
+bench --site [site-name] console               # Python 控制台调试
 ```
 
-### Vue 前端开发命令
-
-项目包含独立的 Vue 3 frappe-ui前端应用（位于 `frontend/` 目录）：
-
+### 构建和测试
 ```bash
-# 进入前端目录
-cd frontend
-
-# 安装依赖
-yarn install
-# 或
-npm install
-
-# 启动开发服务器（运行在 8080 端口）
-yarn dev
-# 或
-npm run dev
-
-# 构建生产版本（输出到 ../product_sales_planning/public/planning）
-yarn build
-# 或
-npm run build
-
-# 预览生产构建
-yarn preview
+bench build --app product_sales_planning       # 构建传统 Frappe Page 资源
+cd frontend && yarn build                      # 构建 Vue SPA（输出到 public/planning/）
+bench --site [site-name] test product_sales_planning  # 运行所有测试
+ruff check . && eslint frontend/src            # 代码质量检查
 ```
 
-**重要配置**：
-- 开发环境需在 `site_config.json` 中添加 `"ignore_csrf": 1` 以避免 CSRF 错误
-- 开发服务器通过 Vite 代理到 Frappe 后端（默认 8000 端口）
-- 开发环境访问地址：`http://[site-name]:8080/planning/`
-- 生产环境访问地址：`http://[site-name]:8000/planning`
-- 生产环境路由基础路径：`/assets/product_sales_planning/planning/`
-- 构建输出目录：`product_sales_planning/public/planning/`
+### 测试数据生成
+```bash
+bench --site [site-name] execute product_sales_planning.fixtures.generate_test_data.generate_all_test_data
+bench --site [site-name] execute product_sales_planning.fixtures.create_test_approval_workflow.create_test_workflow
+```
 
-**注意事项**：
-- 构建输出的文件（`product_sales_planning/public/planning/assets/*`）是自动生成的，不应手动编辑
-- 字体文件（Inter-*.woff2）会在首次构建时自动复制
-- `.vite/` 目录是 Vite 的缓存目录，可以安全删除
-
-### 开发工作流
-
-1. 修改 Python 代码后：无需重启，Frappe 会自动重载
-2. 修改 DocType JSON 后：运行 `bench migrate`
-3. 修改 JS/CSS 后：运行 `bench build --app product_sales_planning`
-4. 提交代码前：确保 pre-commit hooks 通过（ruff, eslint, prettier, pyupgrade）
 
 ## 核心架构
 
@@ -557,367 +482,205 @@ eslint frontend/src
 - 功能分支：从 `develop` 创建，命名格式 `feature/功能名称`
 - 修复分支：从 `develop` 创建，命名格式 `fix/问题描述`
 
-## Vue 前端开发注意事项
+## Vue 前端关键配置
 
-### frappe-ui 集成核心要点
+### frappe-ui 集成要点
 
-**1. 初始化配置 (frontend/src/main.js)**
+**初始化 (frontend/src/main.js)**
 ```javascript
 import { setConfig, frappeRequest, resourcesPlugin } from 'frappe-ui'
-
-// 关键：配置 frappe-ui 使用 Frappe 的请求处理器
-setConfig('resourceFetcher', frappeRequest)
-
-// 注册资源插件（用于 createResource 等功能）
+setConfig('resourceFetcher', frappeRequest)  // 关键：使用 Frappe 请求处理器
 app.use(resourcesPlugin)
 ```
 
-**2. 组件导入和使用**
+**API 调用方式**
 ```javascript
-// 按需导入 frappe-ui 组件
-import { Button, MultiSelect, Avatar, FeatherIcon } from 'frappe-ui'
-
-// 全局注册或局部使用
-app.component('Button', Button)
-```
-
-**3. API 调用方式**
-
-方式一：使用 `call` 函数（适合一次性调用）
-```javascript
+// 一次性调用
 import { call } from 'frappe-ui'
+const { data, error } = await call('your.api.method', { param: value })
 
-// 调用 Frappe 白名单方法
-const { data, error } = await call('your.api.method', {
-    param1: value1,
-    param2: value2
-})
-```
-
-方式二：使用 `createResource`（推荐，适合需要重复加载的数据）
-```javascript
+// 可重复加载（推荐）
 import { createResource } from 'frappe-ui'
-
-// 创建资源对象
-const dashboardData = createResource({
-  url: 'product_sales_planning.planning_system.page.planning_dashboard.planning_dashboard.get_dashboard_data',
-  params: () => ({
-    filters: JSON.stringify(filters.value),
-    search_text: searchText.value
-  }),
-  auto: true  // 自动加载
+const resource = createResource({
+  url: 'your.api.method',
+  params: () => ({ param: value.value }),  // 使用函数以支持响应式
+  auto: true
 })
-
-// 访问数据和状态
-dashboardData.data      // 返回的数据
-dashboardData.loading   // 加载状态
-dashboardData.error     // 错误信息
-dashboardData.reload()  // 重新加载
+// 访问：resource.data, resource.loading, resource.error, resource.reload()
 ```
 
-**4. 样式导入 (frontend/src/index.css)**
-```css
-@import './assets/Inter/inter.css';  /* frappe-ui 使用 Inter 字体 */
-@import 'frappe-ui/style.css';       /* frappe-ui 核心样式 */
-```
-
-**5. Tailwind CSS 配置 (frontend/tailwind.config.js)**
+**Tailwind 配置 (frontend/tailwind.config.js)**
 ```javascript
-// 关键：使用 frappe-ui 的 Tailwind 预设
-presets: [
-  require(path.join(__dirname, 'node_modules/frappe-ui/src/utils/tailwind.config'))
-],
-// 确保扫描 frappe-ui 组件
-content: [
-  "./node_modules/frappe-ui/src/components/**/*.{vue,js,ts,jsx,tsx}",
-]
+presets: [require(path.join(__dirname, 'node_modules/frappe-ui/src/utils/tailwind.config'))],
+content: ["./node_modules/frappe-ui/src/components/**/*.{vue,js,ts,jsx,tsx}"]
 ```
 
-**6. Vite 配置优化 (frontend/vite.config.js)**
-```javascript
-// 优化 frappe-ui 依赖
-optimizeDeps: {
-  include: [
-    'frappe-ui > feather-icons',
-    'frappe-ui'
-  ],
-},
-// 处理 CommonJS 依赖
-commonjsOptions: {
-  include: [/frappe-ui/, /node_modules/],
-}
-```
-
-**7. 图标使用**
-```vue
-<template>
-  <!-- 使用 frappe-ui 的 FeatherIcon 组件 -->
-  <FeatherIcon name="check-square" class="w-4 h-4" />
-</template>
-```
-
-**8. 插槽使用示例**
-```vue
-<MultiSelect :options="options" v-model="state">
-  <!-- 自定义选项显示 -->
-  <template #option="{ option }">
-    <Avatar :image="option.img" :label="option.label" />
-    {{ option.label }}
-  </template>
-
-  <!-- 自定义底部操作栏 -->
-  <template #footer="{ clearAll, selectAll }">
-    <Button @click="clearAll">清空</Button>
-    <Button @click="selectAll">全选</Button>
-  </template>
-</MultiSelect>
-```
+**Vite 配置要点 (frontend/vite.config.js)**
+- `base`: `/assets/product_sales_planning/planning/` (生产环境资源路径)
+- `outDir`: `../product_sales_planning/public/planning` (构建输出目录)
+- `proxy`: 代理 `/api`, `/app`, `/assets` 到 Frappe 后端（开发环境）
+- `optimizeDeps`: 包含 `frappe-ui` 和 `feather-icons`
 
 ### CSRF Token 处理
 
-**服务端注入 (www/planning.py)**
-```python
-def get_context(context):
-    csrf_token = frappe.sessions.get_csrf_token()
-    frappe.db.commit()
-    context.csrf_token = csrf_token
-    context.boot = {
-        "user": frappe.session.user,
-        "csrf_token": csrf_token,
-    }
-```
-
-**前端接收 (www/planning.html)**
-```html
-<meta name="csrf-token" content="{{ csrf_token }}">
-<script>
-  window.csrf_token = "{{ csrf_token }}";
-  window.boot = {{ boot | tojson }};
-</script>
-```
-
-- frappe-ui 的 `call()` 和 `frappeRequest` 会自动从 `window.csrf_token` 读取
-- 开发环境可在 `site_config.json` 中设置 `"ignore_csrf": 1` 跳过验证
-
-### 用户认证检查 (App.vue)
-
-```javascript
-import { call } from 'frappe-ui'
-
-onMounted(async () => {
-  const response = await call('frappe.auth.get_logged_user')
-  if (!response || response === 'Guest') {
-    // 未登录则重定向到登录页
-    window.location.href = '/login?redirect-to=/planning'
-  }
-})
-```
+**服务端** (`www/planning.py`): 生成 token 并注入到 `window.csrf_token` 和 `window.boot`
+**前端**: frappe-ui 的 `call()` 自动从 `window.csrf_token` 读取
+**开发环境**: 在 `site_config.json` 中设置 `"ignore_csrf": 1` 跳过验证
 
 ### 构建和部署
 
-1. **开发模式**：
-   ```bash
-   cd frontend
-   yarn dev  # 启动 Vite 开发服务器（8080 端口）
-   ```
-   - 访问：`http://[site-name]:8080/planning/`
-   - Vite 自动代理 API 请求到 Frappe 后端（8000 端口）
-
-2. **生产构建**：
-   ```bash
-   cd frontend
-   yarn build  # 构建到 ../product_sales_planning/public/planning/
-   bench --site [site-name] clear-cache  # 清除缓存
-   ```
-   - 访问：`http://[site-name]:8000/planning`
-   - 静态资源路径：`/assets/product_sales_planning/planning/`
-
-### Vite 配置要点
-
-- `base`: 设置为 `/assets/product_sales_planning/planning/` 确保资源路径正确
-- `outDir`: 输出到 `../product_sales_planning/public/planning`
-- `rollupOptions`: 固定文件名，去除哈希值（便于 Frappe 引用）
-- `proxy`: 代理 Frappe API 请求（开发环境）
+**开发模式**：`cd frontend && yarn dev` (访问 `http://[site-name]:8080/planning/`)
+**生产构建**：`cd frontend && yarn build && bench --site [site-name] clear-cache`
+**访问地址**：`http://[site-name]:8000/planning`
 
 ### Vue Router 配置
 
-- `history`: 使用 `createWebHistory('/planning/')`
-- 基础路径必须与 Vite 的 `base` 配置和 `website_route_rules` 匹配
-- 路由配置位置：`frontend/src/router.js`
+- 使用 `createWebHistory('/planning/')` 作为基础路径
+- 路由规则在 `hooks.py` 中配置：`website_route_rules` 确保 `/planning/*` 由 Vue Router 处理
 
-### 路由规则配置 (hooks.py)
+## 常见开发场景
+
+### 场景 1：添加新的 API 端点
 
 ```python
-website_route_rules = [
-    {'from_route': '/planning/<path:app_path>', 'to_route': 'planning'},
-    {'from_route': '/planning', 'to_route': 'planning'},
-]
+# 1. 在对应的 page.py 或 doctype.py 中添加方法
+@frappe.whitelist()
+def get_store_summary(store_id):
+    """获取店铺汇总数据"""
+    # 参数验证
+    validate_required_params({"store_id": store_id})
+    validate_doctype_exists("Store List", store_id)
+
+    try:
+        # 业务逻辑
+        data = frappe.get_all(
+            "Commodity Schedule",
+            filters={"store_id": store_id},
+            fields=["commodity_code", "quantity"]
+        )
+        return success_response(data=data)
+    except Exception as e:
+        frappe.log_error(title="获取店铺汇总失败", message=str(e))
+        return error_response(message=str(e))
+
+# 2. 在 Vue 中调用
+import { call } from 'frappe-ui'
+
+const { data, error } = await call(
+    'product_sales_planning.planning_system.page.store_detail.store_detail.get_store_summary',
+    { store_id: 'STORE-001' }
+)
 ```
 
-这确保所有 `/planning/*` 路径都由 Vue Router 处理（SPA 路由）
+### 场景 2：修改 DocType 字段
 
-## 重要提醒
+```bash
+# 1. 在 Frappe Desk 中修改 DocType（或直接编辑 JSON 文件）
+# 2. 运行迁移
+bench --site [site-name] migrate
 
-1. **不要写兼容代码**: 直接使用最新的 Frappe v15 API
-2. **不要重复执行改动**: 每次改动只执行一次，避免数据重复
-3. **优先使用 ORM**: 除非性能必要，否则不使用 Raw SQL
-4. **权限检查**: 所有 API 默认检查权限（`ignore_permissions=False`）
-5. **用中文回答**: 所有交互使用中文
-6. **每次有重大更新记得更新文档**：每次有重大更新及时修改更新CLAUDE.md文档
-7. **Vue 构建后需要清除缓存**: 运行 `bench --site [site-name] clear-cache` 确保加载最新资源 
+# 3. 如果需要数据迁移，创建迁移脚本
+# product_sales_planning/patches/v1_0/update_store_data.py
+```
 
-## 页面路由
+### 场景 3：添加新的 Vue 页面
 
-### 传统 Frappe Page 路由
-- 计划看板: `/app/planning-dashboard`
-- 店铺详情: `/app/store-detail`
-- 数据查看: `/app/data-view`
+```bash
+# 1. 创建页面组件
+# frontend/src/pages/NewPage.vue
 
-### Vue SPA 路由
-- Vue 应用入口: `/planning` 或 `/planning/`
-- 计划看板: `/planning/` (Vue Router 根路径，使用 MainLayout 布局)
-- 组件演示: `/planning/demo` (frappe-ui 组件演示页)
+# 2. 在路由中注册
+# frontend/src/router.js
+{
+  path: '/new-page',
+  component: () => import('./pages/NewPage.vue')
+}
+
+# 3. 在侧边栏添加导航
+# frontend/src/components/Sidebar.vue
+
+# 4. 构建并清除缓存
+cd frontend && yarn build
+bench --site [site-name] clear-cache
+```
+
+### 场景 4：调试 API 问题
+
+```bash
+# 1. 查看错误日志
+bench --site [site-name] logs
+
+# 2. 进入控制台调试
+bench --site [site-name] console
+>>> frappe.get_doc("Store List", "STORE-001")
+
+# 3. 启用 SQL 调试
+frappe.db.sql("SELECT * FROM `tabStore List`", debug=1)
+
+# 4. 检查权限
+frappe.has_permission("Store List", "read", "STORE-001")
+```
+
+### 场景 5：性能优化
+
+```python
+# 问题：N+1 查询
+# ❌ 错误做法
+for task in tasks:
+    stores = frappe.get_all("Tasks Store", filters={"parent": task.name})
+
+# ✅ 正确做法
+all_stores = frappe.get_all(
+    "Tasks Store",
+    filters={"parent": ["in", [t.name for t in tasks]]},
+    fields=["parent", "store_id"]
+)
+
+# 问题：大量数据更新
+# ❌ 错误做法（逐条更新）
+for item in items:
+    doc = frappe.get_doc("Commodity Schedule", item.name)
+    doc.quantity = new_quantity
+    doc.save()
+
+# ✅ 正确做法（批量 SQL）
+frappe.db.sql("""
+    UPDATE `tabCommodity Schedule`
+    SET quantity = %(quantity)s
+    WHERE name IN %(names)s
+""", {"quantity": new_quantity, "names": [i.name for i in items]})
+frappe.db.commit()
+```
+
+## 重要约定
+
+- **Frappe v15 API**: 直接使用最新 API，无需兼容旧版本
+- **ORM 优先**: 除非性能关键场景，否则使用 Frappe ORM 而非 Raw SQL
+- **权限检查**: 所有 API 默认检查权限（`ignore_permissions=False`）
+- **Vue 构建后清缓存**: 运行 `bench --site [site-name] clear-cache` 确保加载最新资源
+- **重大变更需 OpenSpec 提案**: 参考文档开头的 OpenSpec 工作流
+- **用中文交互**: 所有用户交互使用中文
+- **及时更新文档**: 重大更新后修改 CLAUDE.md
+
+## 页面路由速查
+
+| 类型 | 路由 | 说明 |
+|------|------|------|
+| 传统 Frappe Page | `/app/planning-dashboard` | 计划看板 |
+| 传统 Frappe Page | `/app/store-detail` | 店铺详情（handsontable 表格） |
+| 传统 Frappe Page | `/app/data-view` | 数据查看 |
+| Vue SPA | `/planning/` | Vue 应用入口（MainLayout 布局） |
+| Vue SPA | `/planning/demo` | frappe-ui 组件演示 |
 
 **路由配置位置**：
-- Frappe Page 路由：`hooks.py` 中的 `page_routes`
-- Vue SPA 路由：`frontend/src/router.js`（嵌套路由结构）
-- Web 路由规则：`hooks.py` 中的 `website_route_rules`
-
-**嵌套路由结构**：
-```javascript
-{
-  path: '/',
-  component: MainLayout,  // 父级布局组件
-  children: [
-    { path: '', component: PlanningDashboard },  // 默认子路由
-    { path: 'demo', component: FrappeUIDemo }    // 演示页面
-  ]
-}
-```
-
-## Vue 前端组件详解
-
-### MainLayout.vue（主布局组件）
-
-**功能**：
-- 提供统一的页面框架，包含侧边栏、顶栏和主内容区
-- 管理侧边栏折叠状态（支持 localStorage 持久化）
-- 管理深色模式状态（支持 localStorage 持久化）
-- 使用 `<router-view />` 渲染子路由页面
-
-**关键特性**：
-- 使用 `ref` 管理响应式状态
-- 使用 `watch` 监听状态变化并持久化到 localStorage
-- 使用 `onMounted` 从 localStorage 恢复用户偏好
-
-**文件位置**: `frontend/src/layouts/MainLayout.vue`
-
-### Sidebar.vue（侧边栏组件）
-
-**功能**：
-- 显示导航菜单（计划看板、组件演示等）
-- 支持折叠/展开状态（通过 `collapsed` prop 控制）
-- 使用 Vue Router 进行页面导航
-- 显示应用 Logo 和图标
-
-**关键特性**：
-- 使用 `router-link` 的 `v-slot` 实现自定义激活样式
-- 使用 Tailwind CSS 实现响应式宽度（折叠时 w-16，展开时 w-64）
-- 自定义滚动条样式
-
-**文件位置**: `frontend/src/components/Sidebar.vue`
-
-### TopBar.vue（顶部栏组件）
-
-**功能**：
-- 左侧显示汉堡菜单按钮（用于切换侧边栏）
-- 右侧显示用户菜单组件
-
-**关键特性**：
-- 使用 `defineEmits` 向父组件发射事件
-- 简洁的组件设计，职责单一
-
-**文件位置**: `frontend/src/components/TopBar.vue`
-
-### UserMenu.vue（用户菜单组件）
-
-**功能**：
-- 显示当前登录用户的头像和信息
-- 提供下拉菜单（用户设置、切换主题、登出）
-- 使用 frappe-ui 的 `createResource` 加载用户数据
-
-**关键特性**：
-- 使用 `Dropdown` 组件实现下拉菜单
-- 使用 `Avatar` 组件显示用户头像
-- 从 `window.boot.user` 获取当前用户信息
-- 调用 `frappe.auth.logout` 实现登出功能
-
-**文件位置**: `frontend/src/components/UserMenu.vue`
-
-### PlanningDashboard.vue（计划看板页面）
-
-**功能**：
-- 显示计划任务列表（待完成/已完成）
-- 提供搜索、筛选、排序功能
-- 显示统计卡片（进行中计划、已结束计划等）
-- 支持分页显示
-
-**关键特性**：
-- 使用 `createResource` 加载看板数据和筛选选项
-- 使用 `computed` 计算派生状态（统计卡片、分页数据）
-- 使用 `watch` 监听筛选条件变化并自动刷新数据
-- 使用防抖（debounce）优化搜索性能
-- 点击任务卡片跳转到传统 Frappe Page（店铺详情页）
-
-**数据流**：
-```
-用户操作（搜索/筛选/排序）
-    ↓
-更新响应式状态（filters, searchText, sortBy）
-    ↓
-watch 监听到变化
-    ↓
-调用 dashboardData.reload()
-    ↓
-createResource 重新请求后端 API
-    ↓
-更新 dashboardData.data
-    ↓
-computed 重新计算（filteredTasks, paginatedTasks）
-    ↓
-视图自动更新
-```
-
-**文件位置**: `frontend/src/pages/PlanningDashboard.vue`
-
-### 组件通信模式
-
-**父子组件通信**：
-```vue
-<!-- 父组件 (MainLayout.vue) -->
-<Sidebar
-  :collapsed="sidebarCollapsed"           <!-- Props 向下传递 -->
-  @toggle-collapse="toggleSidebar"        <!-- Events 向上发射 -->
-/>
-
-<!-- 子组件 (Sidebar.vue) -->
-<script setup>
-defineProps({ collapsed: Boolean })       // 接收 props
-defineEmits(['toggle-collapse'])          // 定义 emits
-</script>
-```
-
-**跨组件状态共享**：
-- 使用 localStorage 持久化用户偏好（侧边栏折叠、深色模式）
-- 使用 Vue Router 共享路由状态
-- 使用 `window.boot` 共享全局配置（用户信息、CSRF token）
+- Frappe Page: `hooks.py` → `page_routes`
+- Vue SPA: `frontend/src/router.js` (嵌套路由)
+- Web 路由规则: `hooks.py` → `website_route_rules`
 
 ## 相关文档
 
-- Frappe Framework 文档: https://frappeframework.com/docs
-- ERPNext 文档: https://docs.erpnext.com
-- Frappe ui 组件文档: https://ui.frappe.io/
-- Vue 3 文档: https://vuejs.org/
-- Tailwind CSS 文档: https://tailwindcss.com/
-- frappe-ui 源码: https://github.com/frappe/frappe-ui
-- frappe-ui MD apps/product_sales_planning/frappe-ui集成使用.md
+- Frappe Framework: https://frappeframework.com/docs
+- frappe-ui 组件: https://ui.frappe.io/
+- Vue 3: https://vuejs.org/
+- Tailwind CSS: https://tailwindcss.com/
+- frappe-ui 集成指南: `frappe-ui集成使用.md`

@@ -13,6 +13,24 @@ import { ref, computed, watch } from 'vue'
 import { createResource, call } from 'frappe-ui'
 
 /**
+ * 防抖函数
+ * @param {Function} func - 要防抖的函数
+ * @param {number} delay - 延迟时间（毫秒）
+ * @returns {Function} - 防抖后的函数
+ */
+function debounce(func, delay) {
+	let timeoutId = null
+	return function(...args) {
+		if (timeoutId) {
+			clearTimeout(timeoutId)
+		}
+		timeoutId = setTimeout(() => {
+			func.apply(this, args)
+		}, delay)
+	}
+}
+
+/**
  * useStoreDetail composable
  *
  * @param {string} storeId - 店铺 ID
@@ -25,7 +43,6 @@ export function useStoreDetail(storeId, taskId) {
 	// 筛选条件
 	const filters = ref({
 		search: '', // 搜索关键词
-		mechanism: '', // 机制筛选
 		category: '' // 分类筛选
 	})
 
@@ -41,11 +58,20 @@ export function useStoreDetail(storeId, taskId) {
 		hiddenColumns: [] // 隐藏的列索引
 	})
 
+	// 保存状态管理
+	const isSaving = ref(false)
+	const saveError = ref(null)
+	const lastSaveTime = ref(null)
+
+	// 行选择状态管理（用于批量删除）
+	const selectedRows = ref(new Set()) // 存储选中的行索引
+	const selectedCodes = ref(new Set()) // 存储选中的商品编码
+
 	// ==================== API 资源 ====================
 
 	// 加载商品数据（使用服务端分页）
 	const commodityData = createResource({
-		url: 'product_sales_planning.planning_system.page.store_detail.store_detail.get_store_commodity_data',
+		url: 'product_sales_planning.api.v1.commodity.get_store_commodity_data',
 		params: () => ({
 			store_id: storeId,
 			task_id: taskId,
@@ -114,7 +140,22 @@ export function useStoreDetail(storeId, taskId) {
 
 	// 月份列表
 	const months = computed(() => {
-		return commodityData.data?.months || []
+		const monthList = commodityData.data?.months || []
+		if (monthList.length) return monthList
+
+		// 当接口返回单月视图或缺少 months 字段时，尝试从数据中推导
+		const derived = new Set()
+		;(commodityData.data?.commodities || []).forEach((item) => {
+			if (item?.months) {
+				Object.keys(item.months).forEach((m) => derived.add(m))
+			} else if (item?.sub_date) {
+				const monthKey = typeof item.sub_date === 'string'
+					? item.sub_date.slice(0, 7)
+					: (item.sub_date?.slice ? item.sub_date.slice(0, 7) : null)
+				if (monthKey) derived.add(monthKey)
+			}
+		})
+		return Array.from(derived).sort()
 	})
 
 	// 店铺信息
@@ -200,6 +241,7 @@ export function useStoreDetail(storeId, taskId) {
 	 */
 	const updateFilters = (newFilters) => {
 		filters.value = { ...filters.value, ...newFilters }
+		clearSelection()
 		// 重置到第一页
 		pagination.value.currentPage = 1
 		// 重新加载数据（服务端分页）
@@ -212,20 +254,24 @@ export function useStoreDetail(storeId, taskId) {
 	 */
 	const updatePagination = (newPagination) => {
 		pagination.value = { ...pagination.value, ...newPagination }
+		clearSelection()
 		// 重新加载数据（服务端分页）
 		commodityData.reload()
 	}
 
 	/**
-	 * 保存单个月份数量
+	 * 保存单个月份数量（内部实现，不防抖）
 	 * @param {string} code - 商品编码
 	 * @param {string} month - 月份
 	 * @param {number} quantity - 数量
 	 */
-	const saveMonthQuantity = async (code, month, quantity) => {
+	const _saveMonthQuantityInternal = async (code, month, quantity) => {
+		isSaving.value = true
+		saveError.value = null
+
 		try {
 			const response = await call(
-				'product_sales_planning.planning_system.page.store_detail.store_detail.update_month_quantity',
+				'product_sales_planning.api.v1.commodity.update_month_quantity',
 				{
 					store_id: storeId,
 					task_id: taskId,
@@ -236,15 +282,28 @@ export function useStoreDetail(storeId, taskId) {
 			)
 
 			if (response && response.status === 'success') {
+				lastSaveTime.value = new Date()
 				return { success: true, message: '保存成功' }
 			} else {
+				saveError.value = response?.message || '保存失败'
 				return { success: false, message: response?.message || '保存失败' }
 			}
 		} catch (error) {
 			console.error('保存失败:', error)
+			saveError.value = error.message || '保存失败'
 			return { success: false, message: error.message || '保存失败' }
+		} finally {
+			isSaving.value = false
 		}
 	}
+
+	/**
+	 * 保存单个月份数量（防抖版本，500ms 延迟）
+	 * @param {string} code - 商品编码
+	 * @param {string} month - 月份
+	 * @param {number} quantity - 数量
+	 */
+	const saveMonthQuantity = debounce(_saveMonthQuantityInternal, 500)
 
 	/**
 	 * 批量保存数据
@@ -252,20 +311,28 @@ export function useStoreDetail(storeId, taskId) {
 	 */
 	const batchSaveChanges = async (changes) => {
 		try {
-			// 将 Handsontable 的 changes 转换为 API 需要的格式
-			const updates = changes.map(([row, col, oldValue, newValue]) => {
-				const commodity = paginatedCommodities.value[row]
-				const month = months.value[col - 2] // 前两列是商品编码和名称
+			const fixedColumnCount = 6 // 选择列 + 5 个基础信息列
 
-				return {
-					code: commodity.commodity_code,
-					month: month,
-					quantity: newValue
-				}
-			})
+			// 将 Handsontable 的 changes 转换为 API 需要的格式
+			const updates = changes
+				.map(([row, col, oldValue, newValue]) => {
+					const commodity = paginatedCommodities.value[row]
+					const monthIndex = col - fixedColumnCount
+
+					if (!commodity || monthIndex < 0 || monthIndex >= months.value.length) {
+						return null
+					}
+
+					return {
+						code: commodity.commodity_code || commodity.code,
+						month: months.value[monthIndex],
+						quantity: newValue
+					}
+				})
+				.filter(Boolean)
 
 			const response = await call(
-				'product_sales_planning.planning_system.page.store_detail.store_detail.batch_update_quantities',
+				'product_sales_planning.api.v1.commodity.batch_update_month_quantities',
 				{
 					store_id: storeId,
 					task_id: taskId,
@@ -290,7 +357,7 @@ export function useStoreDetail(storeId, taskId) {
 	const exportToExcel = async () => {
 		try {
 			const response = await call(
-				'product_sales_planning.planning_system.page.store_detail.store_detail.export_commodity_data',
+				'product_sales_planning.api.v1.import_export.export_commodity_data',
 				{
 					store_id: storeId,
 					task_id: taskId
@@ -315,6 +382,14 @@ export function useStoreDetail(storeId, taskId) {
 	 */
 	const generateColumns = () => {
 		const columns = [
+			{
+				data: '__selected',
+				title: '',
+				type: 'checkbox',
+				width: 50,
+				className: 'htCenter htMiddle',
+				readOnly: !canEdit.value
+			},
 			{
 				data: 'name1',
 				title: '商品名称',
@@ -369,7 +444,7 @@ export function useStoreDetail(storeId, taskId) {
 	 * 生成 Handsontable 的表头
 	 */
 	const generateHeaders = () => {
-		const headers = ['商品名称', '编码', '规格', '品牌', '类别']
+		const headers = ['选择', '商品名称', '编码', '规格', '品牌', '类别']
 		months.value.forEach(month => {
 			headers.push(month)
 		})
@@ -380,8 +455,9 @@ export function useStoreDetail(storeId, taskId) {
 	 * 转换数据为 Handsontable 格式
 	 */
 	const transformDataForTable = () => {
-		return paginatedCommodities.value.map(item => {
+		const result = paginatedCommodities.value.map((item, index) => {
 			const row = {
+				__selected: selectedRows.value.has(index),
 				name1: item.commodity_name || item.name1,
 				code: item.commodity_code || item.code,
 				specifications: item.specifications || '',
@@ -393,11 +469,114 @@ export function useStoreDetail(storeId, taskId) {
 			months.value.forEach(month => {
 				// 从 months 对象中获取数量
 				const monthData = item.months?.[month]
-				row[month] = monthData?.quantity || 0
+				let fallbackQty = 0
+				if (!monthData && item.sub_date) {
+					const monthKey = typeof item.sub_date === 'string'
+						? item.sub_date.slice(0, 7)
+						: (item.sub_date?.slice ? item.sub_date.slice(0, 7) : null)
+					if (monthKey === month) {
+						fallbackQty = item.quantity || 0
+					}
+				}
+				row[month] = monthData?.quantity ?? fallbackQty ?? 0
 			})
 
 			return row
 		})
+		
+		console.log('🔄 transformDataForTable:', {
+			paginatedCount: paginatedCommodities.value.length,
+			monthsCount: months.value.length,
+			resultCount: result.length,
+			sampleRow: result[0],
+			sampleItem: paginatedCommodities.value[0]
+		})
+		
+		return result
+	}
+
+	// ==================== 批量删除功能 ====================
+
+	/**
+	 * 选中行数量
+	 */
+	const selectedCount = computed(() => selectedCodes.value.size)
+
+	/**
+	 * 是否有选中的行
+	 */
+	const hasSelection = computed(() => selectedCodes.value.size > 0)
+
+	/**
+	 * 更新选中的行（从 Handsontable 的选择事件触发）
+	 * @param {Array} rowIndices - 选中的行索引数组
+	 */
+	const updateSelectedRows = (rowIndices) => {
+		selectedRows.value = new Set(rowIndices)
+
+		// 根据行索引获取商品编码
+		const codes = new Set()
+		rowIndices.forEach(rowIndex => {
+			const commodity = paginatedCommodities.value[rowIndex]
+			if (commodity) {
+				const code = commodity.commodity_code || commodity.code
+				if (code) {
+					codes.add(code)
+				}
+			}
+		})
+		selectedCodes.value = codes
+	}
+
+	/**
+	 * 清空选择
+	 */
+	const clearSelection = () => {
+		selectedRows.value = new Set()
+		selectedCodes.value = new Set()
+	}
+
+	/**
+	 * 批量删除选中的商品
+	 */
+	const batchDeleteSelected = async () => {
+		if (selectedCodes.value.size === 0) {
+			return { success: false, message: '请先选择要删除的商品' }
+		}
+
+		try {
+			const codes = Array.from(selectedCodes.value)
+			const response = await call(
+				'product_sales_planning.api.v1.commodity.batch_delete_by_codes',
+				{
+					store_id: storeId,
+					task_id: taskId,
+					codes: JSON.stringify(codes)
+				}
+			)
+
+			if (response && response.status === 'success') {
+				// 清空选择
+				clearSelection()
+				// 刷新数据
+				await refreshData()
+				return {
+					success: true,
+					message: response.message || `成功删除 ${response.count} 条记录`
+				}
+			} else {
+				return {
+					success: false,
+					message: response?.message || '删除失败'
+				}
+			}
+		} catch (error) {
+			console.error('批量删除失败:', error)
+			return {
+				success: false,
+				message: error.message || '删除失败'
+			}
+		}
 	}
 
 	// ==================== 返回 ====================
@@ -427,8 +606,19 @@ export function useStoreDetail(storeId, taskId) {
 		loading: computed(() => commodityData.loading),
 		error: computed(() => commodityData.error),
 
+		// 保存状态
+		isSaving,
+		saveError,
+		lastSaveTime,
+
 		// 筛选选项
 		filterOptions: filterOptionsData,
+
+		// 批量删除状态
+		selectedRows,
+		selectedCodes,
+		selectedCount,
+		hasSelection,
 
 		// 方法
 		refreshData,
@@ -439,6 +629,10 @@ export function useStoreDetail(storeId, taskId) {
 		exportToExcel,
 		generateColumns,
 		generateHeaders,
-		transformDataForTable
+		transformDataForTable,
+		// 批量删除方法
+		updateSelectedRows,
+		clearSelection,
+		batchDeleteSelected
 	}
 }

@@ -75,6 +75,11 @@ const menuItems = [
         icon: 'layout'
     },
     {
+        path: '/handsontable-demo',
+        label: 'Handsontable示例',
+        icon: 'table'
+    },
+    {
         path: '/demo',
         label: '组件演示',
         icon: 'grid'

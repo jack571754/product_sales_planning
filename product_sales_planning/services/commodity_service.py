@@ -18,7 +18,7 @@ class CommodityScheduleService:
 
 	@staticmethod
 	def get_commodity_data(store_id=None, task_id=None, brand=None, category=None,
-	                       start=0, page_length=20, search_term=None, view_mode="single"):
+	                       start=0, page_length=20, search_term=None, view_mode="multi"):
 		"""
 		获取商品计划数据
 
@@ -35,6 +35,11 @@ class CommodityScheduleService:
 		Returns:
 			dict: 包含数据、总数、视图模式等信息
 		"""
+		# 标准化视图模式，默认使用多月视图以便展示完整报表
+		view_mode = (view_mode or "multi").lower()
+		if view_mode not in {"multi", "single"}:
+			view_mode = "multi"
+
 		# 构造筛选条件
 		filters = {}
 		if store_id:
@@ -42,9 +47,29 @@ class CommodityScheduleService:
 		if task_id:
 			filters["task_id"] = task_id
 
-		# 添加日期范围筛选（未来4个月）
-		start_date, end_date = get_date_range_filter(months_ahead=4, include_current=False)
-		filters["sub_date"] = [">=", start_date]
+		# 优先使用任务的时间范围；若缺失则退回默认的未来4个月区间
+		task_dates = None
+		if task_id:
+			task_dates = frappe.get_value(
+				"Schedule tasks",
+				task_id,
+				["start_date", "end_date"],
+				as_dict=True,
+			)
+
+		start_date = task_dates.get("start_date") if task_dates else None
+		end_date = task_dates.get("end_date") if task_dates else None
+
+		if not start_date and not end_date:
+			# 保持向后兼容：没有任务时间范围时退回未来4个月窗口
+			start_date, end_date = get_date_range_filter(months_ahead=4, include_current=False)
+
+		if start_date and end_date:
+			filters["sub_date"] = ["between", [start_date, end_date]]
+		elif start_date:
+			filters["sub_date"] = [">=", start_date]
+		elif end_date:
+			filters["sub_date"] = ["<=", end_date]
 
 		# 获取数据
 		commodity_schedules = frappe.get_all(
@@ -53,14 +78,6 @@ class CommodityScheduleService:
 			fields=["name", "store_id", "task_id", "code", "quantity", "sub_date", "creation"],
 			order_by="code asc, sub_date asc"
 		)
-
-		# 过滤未来4个月内的数据
-		from datetime import datetime
-		end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
-		commodity_schedules = [
-			item for item in commodity_schedules
-			if item.sub_date and item.sub_date < end_date_obj
-		]
 
 		if view_mode == "multi":
 			return CommodityScheduleService._get_multi_month_view(
@@ -250,64 +267,75 @@ class CommodityScheduleService:
 		if not codes or not isinstance(codes, list):
 			frappe.throw(_("未选择任何商品"))
 
-		inserted_count = 0
-		skipped_count = 0
-		errors = []
+		# 开始事务
+		frappe.db.begin()
+		
+		try:
+			inserted_count = 0
+			skipped_count = 0
+			errors = []
 
-		# 获取下个月第一天
-		from product_sales_planning.utils.date_utils import get_next_n_months
-		next_month = get_next_n_months(n=1, include_current=False)[0]
-		sub_date = get_month_first_day(next_month)
+			# 获取下个月第一天
+			from product_sales_planning.utils.date_utils import get_next_n_months
+			next_month = get_next_n_months(n=1, include_current=False)[0]
+			sub_date = get_month_first_day(next_month)
 
-		for code in codes:
-			try:
-				if not code:
-					errors.append("无效的商品代码")
-					continue
+			for code in codes:
+				try:
+					if not code:
+						errors.append("无效的商品代码")
+						continue
 
-				# 检查是否存在
-				filters = {
-					"code": code,
-					"store_id": store_id,
-					"task_id": task_id,
-					"sub_date": sub_date
-				}
+					# 检查是否存在
+					filters = {
+						"code": code,
+						"store_id": store_id,
+						"task_id": task_id,
+						"sub_date": sub_date
+					}
 
-				exists = frappe.db.exists("Commodity Schedule", filters)
+					exists = frappe.db.exists("Commodity Schedule", filters)
 
-				if not exists:
-					doc = frappe.new_doc("Commodity Schedule")
-					doc.store_id = store_id
-					doc.code = code
-					doc.task_id = task_id
-					doc.quantity = 0
-					doc.sub_date = sub_date
-					doc.insert()
-					inserted_count += 1
-				else:
-					skipped_count += 1
+					if not exists:
+						doc = frappe.new_doc("Commodity Schedule")
+						doc.store_id = store_id
+						doc.code = code
+						doc.task_id = task_id
+						doc.quantity = 0
+						doc.sub_date = sub_date
+						doc.insert()
+						inserted_count += 1
+					else:
+						skipped_count += 1
 
-			except frappe.ValidationError as ve:
-				errors.append(f"商品 {code}: {str(ve)}")
-			except Exception as e:
-				errors.append(f"商品 {code}: {str(e)}")
+				except frappe.ValidationError as ve:
+					errors.append(f"商品 {code}: {str(ve)}")
+				except Exception as e:
+					errors.append(f"商品 {code}: {str(e)}")
 
-		frappe.db.commit()
+			# 全部成功才提交
+			frappe.db.commit()
 
-		if errors:
-			frappe.log_error("批量添加部分失败", "\n".join(errors))
+			if errors:
+				frappe.log_error("批量添加部分失败", "\n".join(errors))
 
-		msg = f"成功添加 {inserted_count} 条"
-		if skipped_count > 0:
-			msg += f"，跳过 {skipped_count} 条已存在记录"
+			msg = f"成功添加 {inserted_count} 条"
+			if skipped_count > 0:
+				msg += f"，跳过 {skipped_count} 条已存在记录"
 
-		return {
-			"status": "success",
-			"count": inserted_count,
-			"skipped": skipped_count,
-			"errors": errors[:10],
-			"msg": msg
-		}
+			return {
+				"status": "success",
+				"count": inserted_count,
+				"skipped": skipped_count,
+				"errors": errors[:10],
+				"msg": msg
+			}
+			
+		except Exception as e:
+			# 发生错误时回滚
+			frappe.db.rollback()
+			frappe.log_error("批量添加失败", str(e))
+			frappe.throw(_("批量添加失败: {0}").format(str(e)))
 
 	@staticmethod
 	def batch_update_quantity(names, quantity):
@@ -326,33 +354,44 @@ class CommodityScheduleService:
 
 		quantity = validate_positive_integer(quantity, "数量")
 
-		updated_count = 0
-		errors = []
+		# 开始事务
+		frappe.db.begin()
+		
+		try:
+			updated_count = 0
+			errors = []
 
-		for name in names:
-			try:
-				doc = frappe.get_doc("Commodity Schedule", name)
-				doc.quantity = quantity
-				doc.save()
-				updated_count += 1
-			except frappe.PermissionError:
-				errors.append(f"记录 {name}: 无权限修改")
-			except Exception as e:
-				errors.append(f"记录 {name}: {str(e)}")
-				frappe.log_error(f"更新记录失败: {name}", str(e))
+			for name in names:
+				try:
+					doc = frappe.get_doc("Commodity Schedule", name)
+					doc.quantity = quantity
+					doc.save()
+					updated_count += 1
+				except frappe.PermissionError:
+					errors.append(f"记录 {name}: 无权限修改")
+				except Exception as e:
+					errors.append(f"记录 {name}: {str(e)}")
+					frappe.log_error(f"更新记录失败: {name}", str(e))
 
-		frappe.db.commit()
+			# 全部成功才提交
+			frappe.db.commit()
 
-		msg = f"成功修改 {updated_count} 条记录"
-		if errors:
-			msg += f"，{len(errors)} 条失败"
+			msg = f"成功修改 {updated_count} 条记录"
+			if errors:
+				msg += f"，{len(errors)} 条失败"
 
-		return {
-			"status": "success",
-			"count": updated_count,
-			"errors": errors[:10],
-			"msg": msg
-		}
+			return {
+				"status": "success",
+				"count": updated_count,
+				"errors": errors[:10],
+				"msg": msg
+			}
+			
+		except Exception as e:
+			# 发生错误时回滚
+			frappe.db.rollback()
+			frappe.log_error("批量更新失败", str(e))
+			frappe.throw(_("批量更新失败: {0}").format(str(e)))
 
 	@staticmethod
 	def batch_delete(names):
@@ -368,28 +407,39 @@ class CommodityScheduleService:
 		if not names or not isinstance(names, list):
 			frappe.throw(_("未选择任何记录"))
 
-		deleted_count = 0
-		errors = []
+		# 开始事务
+		frappe.db.begin()
+		
+		try:
+			deleted_count = 0
+			errors = []
 
-		for name in names:
-			try:
-				frappe.delete_doc("Commodity Schedule", name)
-				deleted_count += 1
-			except frappe.PermissionError:
-				errors.append(f"记录 {name}: 无权限删除")
-			except Exception as e:
-				errors.append(f"记录 {name}: {str(e)}")
-				frappe.log_error(f"删除记录失败: {name}", str(e))
+			for name in names:
+				try:
+					frappe.delete_doc("Commodity Schedule", name)
+					deleted_count += 1
+				except frappe.PermissionError:
+					errors.append(f"记录 {name}: 无权限删除")
+				except Exception as e:
+					errors.append(f"记录 {name}: {str(e)}")
+					frappe.log_error(f"删除记录失败: {name}", str(e))
 
-		frappe.db.commit()
+			# 全部成功才提交
+			frappe.db.commit()
 
-		msg = f"成功删除 {deleted_count} 条记录"
-		if errors:
-			msg += f"，{len(errors)} 条失败"
+			msg = f"成功删除 {deleted_count} 条记录"
+			if errors:
+				msg += f"，{len(errors)} 条失败"
 
-		return {
-			"status": "success",
-			"count": deleted_count,
-			"errors": errors[:10],
-			"msg": msg
-		}
+			return {
+				"status": "success",
+				"count": deleted_count,
+				"errors": errors[:10],
+				"msg": msg
+			}
+			
+		except Exception as e:
+			# 发生错误时回滚
+			frappe.db.rollback()
+			frappe.log_error("批量删除失败", str(e))
+			frappe.throw(_("批量删除失败: {0}").format(str(e)))
