@@ -1,19 +1,11 @@
 {
-  "_useHandsontable.js": {
-    "file": "assets/useHandsontable.js",
-    "name": "useHandsontable",
-    "imports": [
-      "index.html"
-    ]
-  },
   "index.html": {
     "file": "assets/index.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "dynamicImports": [
-      "src/pages/StoreDetail.vue",
-      "src/pages/HandsontableDemo.vue"
+      "src/pages/StoreDetail.vue"
     ],
     "css": [
       "assets/index.css"
@@ -386,27 +378,13 @@
     "file": "assets/Inter-ThinItalic.woff2",
     "src": "src/assets/Inter/Inter-ThinItalic.woff2"
   },
-  "src/pages/HandsontableDemo.vue": {
-    "file": "assets/HandsontableDemo.js",
-    "name": "HandsontableDemo",
-    "src": "src/pages/HandsontableDemo.vue",
-    "isDynamicEntry": true,
-    "imports": [
-      "_useHandsontable.js",
-      "index.html"
-    ],
-    "css": [
-      "assets/HandsontableDemo.css"
-    ]
-  },
   "src/pages/StoreDetail.vue": {
     "file": "assets/StoreDetail.js",
     "name": "StoreDetail",
     "src": "src/pages/StoreDetail.vue",
     "isDynamicEntry": true,
     "imports": [
-      "index.html",
-      "_useHandsontable.js"
+      "index.html"
     ],
     "css": [
       "assets/StoreDetail.css"

@@ -24,14 +24,7 @@ const routes = [
           title: '店铺详情'
         }
       },
-      {
-        path: 'handsontable-demo',
-        name: 'HandsontableDemo',
-        component: () => import('./pages/HandsontableDemo.vue'),
-        meta: {
-          title: 'Handsontable示例'
-        }
-      },
+      // HandsontableDemo 已移除 - 演示功能已整合到 StoreDetail 中
     ],
   },
 ]

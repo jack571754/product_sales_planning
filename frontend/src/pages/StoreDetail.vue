@@ -143,22 +143,6 @@
 						</div>
 
 						<div class="flex items-center gap-2">
-							<Dropdown :options="columnVisibilityOptions" placement="bottom-end">
-								<template #default="{ open }">
-									<Button variant="outline" theme="gray" size="sm">
-										<template #prefix>
-											<FeatherIcon name="columns" class="h-4 w-4" />
-										</template>
-										列显示设置
-										<template #suffix>
-											<FeatherIcon 
-												:name="open ? 'chevron-up' : 'chevron-down'" 
-												class="h-4 w-4" 
-											/>
-										</template>
-									</Button>
-								</template>
-							</Dropdown>
 							<div class="text-sm text-gray-500">
 								共 {{ totalCount }} 条数据
 							</div>
@@ -166,7 +150,7 @@
 					</div>
 				</Card>
 
-				<!-- Handsontable Container -->
+				<!-- Data Table (Text Replacement) -->
 				<Card class="overflow-hidden">
 					<div class="border-b border-gray-100 px-5 py-3 bg-gray-50">
 						<div class="flex items-center justify-between">
@@ -196,11 +180,31 @@
 					</div>
 
 					<div class="p-4">
-						<div 
-							ref="tableContainer" 
-							class="handsontable-container"
-							style="height: 600px; overflow: hidden;"
-						></div>
+						<!-- Simple Table Display -->
+						<div class="overflow-x-auto">
+							<table class="min-w-full divide-y divide-gray-200">
+								<thead class="bg-gray-50">
+									<tr>
+										<th v-for="header in tableHeaders" :key="header" 
+											class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+											{{ header }}
+										</th>
+									</tr>
+								</thead>
+								<tbody class="bg-white divide-y divide-gray-200">
+									<tr v-for="(row, rowIndex) in tableData" :key="rowIndex">
+										<td v-for="(col, colIndex) in tableColumns" :key="colIndex"
+											class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{{ row[col.data] || '-' }}
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+						<div v-if="!tableData || tableData.length === 0" 
+							class="text-center py-12 text-gray-500">
+							暂无数据
+						</div>
 					</div>
 				</Card>
 
@@ -244,7 +248,7 @@
 							<div class="flex items-start gap-2">
 								<FeatherIcon name="alert-triangle" class="h-4 w-4 text-red-600 mt-0.5" />
 								<p class="text-sm text-red-800">
-									该操作不可撤销，请谨慎操作！
+									该操作不可撤销,请谨慎操作！
 								</p>
 							</div>
 						</div>
@@ -271,10 +275,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button, Badge, Dropdown, FeatherIcon, Card, Dialog, Alert, toast } from 'frappe-ui'
 import { useStoreDetail } from '../composables/useStoreDetail'
+import { formatTime } from '../utils/helpers'
 import FilterPanel from '../components/store-detail/FilterPanel.vue'
 import StatsCards from '../components/store-detail/StatsCards.vue'
 import PaginationControls from '../components/store-detail/PaginationControls.vue'
@@ -332,7 +337,6 @@ const {
 // ==================== Computed Properties ====================
 const tableColumns = computed(() => {
 	const cols = generateColumns()
-	// Note: generateColumns already includes the checkbox column
 	return cols
 })
 
@@ -358,127 +362,6 @@ const showAddDialog = ref(false)
 const showDeleteDialog = ref(false)
 const exporting = ref(false)
 const deleting = ref(false)
-const tableContainer = ref(null)
-const hiddenColumns = ref(new Set())
-const hotInstance = ref(null)
-const handsontableReady = ref(false)
-
-// ==================== Handsontable Initialization ====================
-const initializeHandsontable = async () => {
-	// Wait for container to be available
-	if (!tableContainer.value) {
-		console.warn('⚠️ Table container not ready yet')
-		return
-	}
-
-	try {
-		// Dynamically import Handsontable
-		const Handsontable = window.Handsontable
-		if (!Handsontable) {
-			console.error('❌ Handsontable not loaded')
-			return
-		}
-
-		// Destroy existing instance
-		if (hotInstance.value) {
-			hotInstance.value.destroy()
-			hotInstance.value = null
-		}
-
-		// Create new instance
-		const config = {
-			data: tableData.value || [],
-			columns: tableColumns.value || [],
-			colHeaders: tableHeaders.value || true,
-			rowHeaders: true,
-			fixedColumnsLeft: 4, // Fix checkbox + first 3 columns
-			contextMenu: true,
-			dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
-			filters: true,
-			columnSorting: true,
-			manualColumnResize: true,
-			manualRowResize: true,
-			copyPaste: {
-				columnsLimit: 1000,
-				rowsLimit: 10000,
-				pasteMode: 'overwrite'
-			},
-			fillHandle: {
-				autoInsertRow: false,
-				direction: 'vertical'
-			},
-			height: 600,
-			licenseKey: 'non-commercial-and-evaluation',
-			language: 'zh-CN',
-			stretchH: 'none',
-			autoWrapRow: true,
-			autoWrapCol: true,
-			cells: (row, col) => {
-				const cellProperties = {}
-				
-				// Make checkbox column always editable
-				if (col === 0) {
-					cellProperties.readOnly = false
-					return cellProperties
-				}
-
-				// Apply read-only based on canEdit
-				if (!canEdit.value) {
-					cellProperties.readOnly = true
-					cellProperties.className = 'htDimmed'
-				}
-
-				return cellProperties
-			},
-			afterChange: (changes, source) => {
-				if (!changes || source === 'loadData') return
-				handleDataChange(changes, source)
-			},
-			beforeCopy: () => true,
-			beforePaste: (data, coords) => {
-				if (!canEdit.value) {
-					toast.warning('当前状态不可编辑')
-					return false
-				}
-				return true
-			}
-		}
-
-		hotInstance.value = new Handsontable(tableContainer.value, config)
-		handsontableReady.value = true
-		console.log('✅ Handsontable initialized successfully')
-	} catch (error) {
-		console.error('❌ Failed to initialize Handsontable:', error)
-		toast.error('表格初始化失败')
-	}
-}
-
-// ==================== Column Visibility ====================
-const columnVisibilityOptions = computed(() => {
-	const cols = generateColumns().filter(col => col.data !== '__selected')
-	return cols.map((col, index) => ({
-		label: col.title || col.data,
-		value: col.data,
-		icon: hiddenColumns.value.has(col.data) ? 'eye-off' : 'eye',
-		onClick: () => toggleColumnVisibility(col.data, index + 1) // +1 for checkbox column
-	}))
-})
-
-const toggleColumnVisibility = (columnKey, columnIndex) => {
-	if (!hotInstance.value) return
-
-	const plugin = hotInstance.value.getPlugin('hiddenColumns')
-	if (!plugin) return
-
-	if (hiddenColumns.value.has(columnKey)) {
-		hiddenColumns.value.delete(columnKey)
-		plugin.showColumn(columnIndex)
-	} else {
-		hiddenColumns.value.add(columnKey)
-		plugin.hideColumn(columnIndex)
-	}
-	hotInstance.value.render()
-}
 
 // ==================== Mobile Dropdown Actions ====================
 const dropdownActions = computed(() => [
@@ -530,68 +413,11 @@ const goBack = () => {
 
 const handleRefresh = async () => {
 	await refreshData()
-	if (hotInstance.value && tableData.value) {
-		hotInstance.value.loadData(tableData.value)
-	}
 	toast.info('数据已刷新')
-}
-
-const handleDataChange = async (changes, source) => {
-	if (!changes || changes.length === 0) return
-
-	const selectionSet = new Set(selectedRows.value || [])
-	let selectionChanged = false
-	const valueChanges = []
-
-	changes.forEach(([row, prop, oldValue, newValue]) => {
-		if (prop === '__selected') {
-			if (newValue === oldValue) return
-			selectionChanged = true
-			if (newValue) {
-				selectionSet.add(row)
-			} else {
-				selectionSet.delete(row)
-			}
-		} else {
-			// Only save if value actually changed
-			if (oldValue !== newValue) {
-				valueChanges.push([row, prop, oldValue, newValue])
-			}
-		}
-	})
-
-	if (selectionChanged) {
-		updateSelectedRows(Array.from(selectionSet))
-	}
-
-	if (valueChanges.length > 0 && canEdit.value) {
-		try {
-			const result = await batchSaveChanges(valueChanges)
-			if (result.success) {
-				toast.success('保存成功')
-			} else {
-				toast.error(result.message || '保存失败')
-				// Revert changes on error
-				if (hotInstance.value && tableData.value) {
-					hotInstance.value.loadData(tableData.value)
-				}
-			}
-		} catch (error) {
-			console.error('保存失败:', error)
-			toast.error(error.message || '保存失败')
-			// Revert changes on error
-			if (hotInstance.value && tableData.value) {
-				hotInstance.value.loadData(tableData.value)
-			}
-		}
-	}
 }
 
 const handleImportSuccess = async () => {
 	await refreshData()
-	if (hotInstance.value && tableData.value) {
-		hotInstance.value.loadData(tableData.value)
-	}
 	toast.success('导入成功，数据已更新')
 }
 
@@ -623,10 +449,6 @@ const handleBatchDelete = async () => {
 		if (result.success) {
 			toast.success(result.message || '删除成功')
 			showDeleteDialog.value = false
-			// Refresh table data
-			if (hotInstance.value && tableData.value) {
-				hotInstance.value.loadData(tableData.value)
-			}
 		} else {
 			toast.error(result.message || '删除失败')
 		}
@@ -638,46 +460,17 @@ const handleBatchDelete = async () => {
 }
 
 const formatSaveTime = (time) => {
-	if (!time) return ''
-	const date = new Date(time)
-	return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+	return formatTime(time)
 }
 
 // ==================== Watchers ====================
-watch(loading, async (isLoading) => {
-	if (!isLoading && tableContainer.value) {
-		// Wait for DOM to update
-		await nextTick()
-		await nextTick()
-		// Initialize Handsontable after data is loaded
-		await initializeHandsontable()
-	}
-})
-
-watch(tableData, (newData) => {
-	if (hotInstance.value && handsontableReady.value && newData) {
-		hotInstance.value.loadData(newData)
-	}
-}, { deep: false })
-
 watch([filters, pagination], () => {
 	updateSelectedRows([])
 }, { deep: true })
 
 // ==================== Lifecycle ====================
 onMounted(async () => {
-	// Wait for initial data load
-	if (!loading.value && tableContainer.value) {
-		await nextTick()
-		await initializeHandsontable()
-	}
-})
-
-onBeforeUnmount(() => {
-	if (hotInstance.value) {
-		hotInstance.value.destroy()
-		hotInstance.value = null
-	}
+	// Initial data load is handled by the composable
 })
 </script>
 
@@ -687,91 +480,24 @@ onBeforeUnmount(() => {
 	margin: 0 auto;
 }
 
-.handsontable-container {
-	width: 100%;
+/* Simple table styles */
+table {
+	border-collapse: collapse;
 }
 
-/* Handsontable custom styles */
-:deep(.handsontable) {
-	font-size: 13px;
-	color: #374151;
-}
-
-:deep(.handsontable td) {
-	border-color: #e5e7eb;
-	vertical-align: middle;
-}
-
-:deep(.handsontable th) {
+th {
 	background-color: #f9fafb;
 	font-weight: 600;
 	color: #374151;
-	border-color: #e5e7eb;
+	border: 1px solid #e5e7eb;
 }
 
-:deep(.handsontable td.htDimmed) {
-	background-color: #f9fafb;
-	color: #9ca3af;
-}
-
-:deep(.handsontable .htCheckboxRendererInput) {
-	cursor: pointer;
-}
-
-:deep(.handsontable td.area) {
-	background-color: #dbeafe;
-}
-
-:deep(.handsontable td.current) {
-	background-color: #bfdbfe;
-}
-
-/* Copy-paste feedback */
-:deep(.handsontable .copyBorder) {
-	border: 2px dashed #3b82f6;
-}
-
-/* Context menu styling */
-:deep(.htContextMenu) {
-	border-radius: 0.5rem;
-	box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-}
-
-/* Dropdown menu styling */
-:deep(.htDropdownMenu) {
-	border-radius: 0.5rem;
-	box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-}
-
-/* Selection styling */
-:deep(.handsontable tbody tr th.ht__highlight),
-:deep(.handsontable thead tr th.ht__highlight) {
-	background-color: #dbeafe;
-}
-
-/* Error cell styling */
-:deep(.handsontable td.htInvalid) {
-	background-color: #fee2e2 !important;
-}
-
-/* Read-only cell styling */
-:deep(.handsontable td.htDimmed) {
-	background-color: #f9fafb;
-	color: #9ca3af;
-	font-style: italic;
-}
-
-/* Numeric cell alignment */
-:deep(.handsontable td.htNumeric) {
-	text-align: right;
-}
-
-/* Center alignment for checkbox and small columns */
-:deep(.handsontable td.htCenter) {
-	text-align: center;
-}
-
-:deep(.handsontable td.htMiddle) {
+td {
+	border: 1px solid #e5e7eb;
 	vertical-align: middle;
+}
+
+tr:hover {
+	background-color: #f9fafb;
 }
 </style>
