@@ -275,7 +275,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button, Badge, Dropdown, FeatherIcon, Card, Dialog, Alert, toast } from 'frappe-ui'
 import { useStoreDetail } from '../composables/useStoreDetail'
@@ -331,7 +331,8 @@ const {
 	generateHeaders,
 	transformDataForTable,
 	updateSelectedRows,
-	batchDeleteSelected
+	batchDeleteSelected,
+	cleanup
 } = useStoreDetail(props.storeId, props.taskId)
 
 // ==================== Computed Properties ====================
@@ -407,8 +408,25 @@ const dropdownActions = computed(() => [
 ])
 
 // ==================== Event Handlers ====================
-const goBack = () => {
-	router.push({ name: 'PlanningDashboard' })
+const goBack = async () => {
+	try {
+		// 先清理资源
+		if (cleanup && typeof cleanup === 'function') {
+			cleanup()
+		}
+		
+		// 使用正确的路由名称进行导航
+		await router.push({ name: 'Dashboard' })
+	} catch (error) {
+		console.error('导航失败:', error)
+		// 如果命名路由失败，尝试使用路径
+		try {
+			await router.push('/')
+		} catch (fallbackError) {
+			console.error('备用导航也失败:', fallbackError)
+			toast.error('返回失败，请刷新页面')
+		}
+	}
 }
 
 const handleRefresh = async () => {
@@ -471,6 +489,17 @@ watch([filters, pagination], () => {
 // ==================== Lifecycle ====================
 onMounted(async () => {
 	// Initial data load is handled by the composable
+})
+
+onBeforeUnmount(() => {
+	// 清理资源，防止内存泄漏和路由错误
+	try {
+		if (cleanup && typeof cleanup === 'function') {
+			cleanup()
+		}
+	} catch (error) {
+		console.error('组件卸载清理失败:', error)
+	}
 })
 </script>
 

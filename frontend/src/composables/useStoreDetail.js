@@ -554,6 +554,28 @@ export function useStoreDetail(storeId, taskId) {
 		}
 	}
 
+	/**
+	 * 清理资源
+	 */
+	const cleanup = () => {
+		try {
+			// 清除选择状态
+			clearSelection()
+			
+			// 取消所有待处理的请求
+			if (commodityData && typeof commodityData.cancel === 'function') {
+				commodityData.cancel()
+			}
+			
+			// 清除定时器
+			if (saveColumnSettings.cancel) {
+				saveColumnSettings.cancel()
+			}
+		} catch (error) {
+			console.error('清理资源失败:', error)
+		}
+	}
+
 	// ==================== 生命周期 ====================
 
 	/**
@@ -561,6 +583,13 @@ export function useStoreDetail(storeId, taskId) {
 	 */
 	onMounted(() => {
 		loadColumnSettings()
+	})
+
+	/**
+	 * 组件卸载时清理资源
+	 */
+	onUnmounted(() => {
+		cleanup()
 	})
 
 	/**
@@ -619,6 +648,7 @@ export function useStoreDetail(storeId, taskId) {
 		exportToExcel,
 		updateSelectedRows,
 		clearSelection,
-		batchDeleteSelected
+		batchDeleteSelected,
+		cleanup
 	}
 }
