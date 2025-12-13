@@ -84,11 +84,11 @@
                 class="filter-section"
             />
 
-            <div class="toolbar-section">
-                <div class="toolbar-content">
-                    <div class="toolbar-left">
-                        <Transition name="fade">
-                            <div v-if="canEdit && hasSelection" class="flex items-center gap-3">
+	            <div class="toolbar-section">
+	                <div class="toolbar-content">
+	                    <div class="toolbar-left flex flex-wrap items-center gap-3">
+	                        <Transition name="fade">
+	                            <div v-if="canEdit && hasSelection" class="flex items-center gap-3">
                                 <Button
                                     variant="solid"
                                     theme="red"
@@ -98,16 +98,56 @@
                                     <template #prefix><FeatherIcon name="trash-2" class="h-4 w-4" /></template>
                                     删除选中 ({{ selectedCount }})
                                 </Button>
-                                <Badge theme="blue" variant="subtle">已选择 {{ selectedCount }} 项</Badge>
-                            </div>
-                        </Transition>
-                    </div>
+	                                <Badge theme="blue" variant="subtle">已选择 {{ selectedCount }} 项</Badge>
+	                            </div>
+	                        </Transition>
+	                        <div v-if="canEdit" class="flex items-center gap-2">
+	                            <Button
+	                                variant="subtle"
+	                                theme="gray"
+	                                size="sm"
+	                                :disabled="!tableData.length"
+	                                @click="selectAllRows"
+	                            >
+	                                <template #prefix><FeatherIcon name="check-circle" class="h-4 w-4" /></template>
+	                                全选
+	                            </Button>
+	                            <Button
+	                                variant="subtle"
+	                                theme="gray"
+	                                size="sm"
+	                                :disabled="!tableData.length"
+	                                @click="invertSelectionRows"
+	                            >
+	                                <template #prefix><FeatherIcon name="refresh-cw" class="h-4 w-4" /></template>
+	                                反选
+	                            </Button>
+	                            <Button
+	                                variant="subtle"
+	                                theme="gray"
+	                                size="sm"
+	                                :disabled="!hasSelection"
+	                                @click="clearSelectionRows"
+	                            >
+	                                <template #prefix><FeatherIcon name="x" class="h-4 w-4" /></template>
+	                                清除
+	                            </Button>
+	                        </div>
+	                    </div>
 
-                    <div class="toolbar-right">
-                        <div class="total-count">共 {{ totalCount }} 条数据</div>
-                    </div>
-                </div>
-            </div>
+	                    <div class="toolbar-right flex items-center gap-2 justify-end">
+	                        <Dropdown :options="columnMenuOptions" placement="bottom-end">
+	                            <template #default>
+	                                <Button variant="outline" theme="gray" size="sm">
+	                                    <template #prefix><FeatherIcon name="columns" class="h-4 w-4" /></template>
+	                                    列设置
+	                                </Button>
+	                            </template>
+	                        </Dropdown>
+	                        <div class="total-count">共 {{ totalCount }} 条数据</div>
+	                    </div>
+	                </div>
+	            </div>
 
             <div class="table-section">
                 <div class="table-header">
@@ -131,14 +171,14 @@
                     </div>
                 </div>
 
-                <div class="table-content">
-                    <!-- Loading State -->
-                    <div v-if="loading && !tableData.length" class="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
-                         <div class="loading-content">
-                            <div class="spinner"></div>
-                            <span>正在加载数据...</span>
-                        </div>
-                    </div>
+	                <div class="table-content">
+	                    <!-- Loading State -->
+	                    <div v-if="loading && !tableData.length" class="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
+	                         <div class="loading-content">
+	                            <div class="spinner"></div>
+	                            <span>正在加载数据...</span>
+	                        </div>
+	                    </div>
 
                     <!-- Debug Info (Remove in production) -->
                     <div v-if="debugMode" class="debug-info">
@@ -147,42 +187,113 @@
                         <p>filteredCommodities length: {{ filteredCommodities?.length || 0 }}</p>
                     </div>
 
-                    <!-- Data Table -->
-                    <DataTable
-                        v-if="tableData && tableData.length > 0 && tableColumns && tableColumns.length > 0"
-                        class="data-table-wrapper" 
-                        :data="tableData"
-                        :columns="tableColumns"
-                        :read-only="!canEdit"
-                        :can-edit="canEdit"
-                        :hidden-columns="hiddenColumns"
-                        @change="handleTableChange"
-                        @selection-change="handleSelectionChange"
-                        @toggle-column="toggleColumn"
-                    />
-                    
-                    <!-- Empty State -->
-                    <div v-else-if="!loading" class="empty-state">
-                        <div class="empty-icon">
-                            <FeatherIcon name="inbox" class="h-8 w-8" />
+	                    <!-- Empty Guide (no records) -->
+	                    <div
+	                        v-if="!loading && !error && tableColumns && tableColumns.length > 0 && tableData.length === 0"
+	                        class="p-4 border-b border-gray-100 bg-blue-50/40"
+	                    >
+	                        <div class="flex items-start gap-3">
+	                            <div class="h-9 w-9 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 border border-blue-100">
+	                                <FeatherIcon name="info" class="h-4 w-4 text-blue-600" />
+	                            </div>
+	                            <div class="flex-1">
+	                                <div class="text-sm font-semibold text-gray-900">
+	                                    <span v-if="filters.search || filters.category">暂无匹配数据</span>
+	                                    <span v-else>该店铺尚未录入计划数据</span>
+	                                </div>
+	                                <div class="mt-1 text-sm text-gray-600">
+	                                    <span v-if="filters.search || filters.category">
+	                                        当前筛选条件下没有数据，可清除筛选后再查看。
+	                                    </span>
+	                                    <span v-else>
+	                                        请先录入商品并填写未来四个月计划数量，系统将自动保存。
+	                                    </span>
+	                                </div>
+
+	                                <div v-if="!(filters.search || filters.category)" class="mt-3 text-sm text-gray-700">
+	                                    <div class="font-medium text-gray-900">数据录入方式</div>
+	                                    <ol v-if="canEdit" class="mt-2 list-decimal pl-5 space-y-1 text-gray-700">
+	                                        <li>点击“添加商品”，选择需要规划的商品。</li>
+	                                        <li>或点击“单品导入”，使用 Excel 模板批量导入商品/计划。</li>
+	                                        <li>在表格中录入各月数量，编辑后将自动保存到数据库。</li>
+	                                    </ol>
+	                                    <div v-else class="mt-2 text-sm text-gray-700">
+	                                        当前账号无编辑权限，请联系店铺负责人录入数据。
+	                                    </div>
+	                                </div>
+
+	                                <div class="mt-4 flex flex-wrap gap-2">
+	                                    <Button
+	                                        v-if="filters.search || filters.category"
+	                                        variant="solid"
+	                                        theme="gray"
+	                                        @click="updateFilters({ search: '', category: '' })"
+	                                    >
+	                                        清除筛选
+	                                    </Button>
+
+	                                    <template v-else>
+	                                        <Button
+	                                            v-if="canEdit"
+	                                            variant="solid"
+	                                            theme="purple"
+	                                            @click="showAddDialog = true"
+	                                        >
+	                                            添加商品
+	                                        </Button>
+	                                        <Button
+	                                            v-if="canEdit"
+	                                            variant="outline"
+	                                            theme="blue"
+	                                            @click="showImportDialog = true"
+	                                        >
+	                                            单品导入
+	                                        </Button>
+	                                        <Button variant="subtle" theme="gray" @click="wrapAction(refreshData, '数据已刷新')">
+	                                            刷新
+	                                        </Button>
+	                                    </template>
+	                                </div>
+	                            </div>
+	                        </div>
+	                    </div>
+
+	                    <!-- Data Table -->
+	                    <DataTable
+	                        v-if="tableColumns && tableColumns.length > 0"
+	                        ref="dataTableRef"
+	                        class="data-table-wrapper" 
+	                        :data="tableData"
+	                        :columns="tableColumns"
+	                        :read-only="!canEdit"
+	                        :can-edit="canEdit"
+	                        :hidden-columns="columnSettings.hiddenColumns"
+	                        @change="handleTableChange"
+	                        @selection-change="handleSelectionChange"
+	                    />
+	                    
+	                    <!-- Empty State -->
+	                    <div v-else-if="!loading" class="empty-state">
+	                        <div class="empty-icon">
+	                            <FeatherIcon name="inbox" class="h-8 w-8" />
                         </div>
-                        <span>暂无数据</span>
-                        <Button v-if="canEdit" variant="subtle" class="mt-2" @click="showAddDialog = true">添加商品</Button>
+                        <span>表格列加载失败</span>
                     </div>
                 </div>
-            </div>
 
-            <PaginationControls
-                v-if="totalCount > 0"
-                :current-page="pagination.currentPage"
-                :page-size="pagination.pageSize"
-                :total-items="totalCount"
-                :total-pages="totalPages"
-                :page-size-options="pagination.pageSizeOptions"
-                @update:current-page="updatePagination({ currentPage: $event })"
-                @update:page-size="updatePagination({ pageSize: $event })"
-                class="pagination-section"
-            />
+                <div v-if="totalCount > 0" class="table-pagination">
+                    <PaginationControls
+                        :current-page="pagination.currentPage"
+                        :page-size="pagination.pageSize"
+                        :total-items="totalCount"
+                        :total-pages="totalPages"
+                        :page-size-options="pagination.pageSizeOptions"
+                        variant="embedded"
+                        @update:current-page="updatePagination({ currentPage: $event })"
+                        @update:page-size="updatePagination({ pageSize: $event })"
+                    />
+                </div>
+            </div>
         </div>
 
         <Teleport to="body">
@@ -258,17 +369,17 @@ const router = useRouter()
 
 // Composable
 const {
-    filters, pagination, filteredCommodities, storeInfo, taskInfo,
+    filters, pagination, filteredCommodities, storeInfo, taskInfo, columnSettings,
     canEdit, statistics, totalPages, totalCount, loading, error,
     filterOptions, isSaving, saveError, lastSaveTime,
     selectedRows, selectedCount, hasSelection,
     refreshData, updateFilters, updatePagination, batchSaveChanges,
     exportToExcel, generateColumns, generateHeaders, transformDataForTable,
-    updateSelectedRows, batchDeleteSelected, cleanup
+    updateSelectedRows, batchDeleteSelected, toggleColumn, cleanup
 } = useStoreDetail(props.storeId, props.taskId)
 
 // Local State
-const hiddenColumns = ref([])
+const dataTableRef = ref(null)
 const showImportDialog = ref(false)
 const showAddDialog = ref(false)
 const showDeleteDialog = ref(false)
@@ -280,7 +391,7 @@ const debugMode = ref(false) // Set to true to see debug info
 const tableColumns = computed(() => {
     try {
         const cols = generateColumns()
-        console.log('Generated columns:', cols?.length || 0, cols)
+        if (debugMode.value) console.log('Generated columns:', cols?.length || 0, cols)
         return cols || []
     } catch (err) {
         console.error('Error generating columns:', err)
@@ -291,12 +402,22 @@ const tableColumns = computed(() => {
 const tableData = computed(() => {
     try {
         const data = transformDataForTable()
-        console.log('Transformed table data:', data?.length || 0, data)
+        if (debugMode.value) console.log('Transformed table data:', data?.length || 0, data)
         return data || []
     } catch (err) {
         console.error('Error transforming table data:', err)
         return []
     }
+})
+
+const columnMenuOptions = computed(() => {
+    return (tableColumns.value || [])
+        .filter(col => col.data !== '__selected')
+        .map(col => ({
+            label: col.title ?? col.data,
+            icon: columnSettings.value.hiddenColumns.includes(col.data) ? 'eye-off' : 'eye',
+            onClick: () => toggleColumn(col.data)
+        }))
 })
 
 const errorText = computed(() => {
@@ -388,10 +509,10 @@ const handleTableChange = async (changes, source) => {
 }
 
 const handleSelectionChange = (indices) => updateSelectedRows(indices)
-const toggleColumn = (key) => {
-    const idx = hiddenColumns.value.indexOf(key)
-    idx > -1 ? hiddenColumns.value.splice(idx, 1) : hiddenColumns.value.push(key)
-}
+
+const selectAllRows = () => dataTableRef.value?.selectAll?.()
+const invertSelectionRows = () => dataTableRef.value?.invertSelection?.()
+const clearSelectionRows = () => dataTableRef.value?.clearSelection?.()
 
 // Watchers
 watch([filters, pagination], () => updateSelectedRows([]), { deep: true })
@@ -410,21 +531,21 @@ onBeforeUnmount(() => cleanup && cleanup())
 .store-detail-page {
     min-height: 100vh;
     background-color: #f9fafb;
-    padding: 1rem;
+    padding: 0.75rem;
     display: flex;
     flex-direction: column;
 }
 
 @media (min-width: 1024px) {
-    .store-detail-page { padding: 1.5rem; }
+    .store-detail-page { padding: 1.25rem; }
 }
 
 /* Header Section */
 .header-section {
     background: white;
     border-radius: 0.5rem;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     flex-shrink: 0;
 }
@@ -449,17 +570,17 @@ onBeforeUnmount(() => cleanup && cleanup())
 }
 
 /* Stats & Filter & Toolbar */
-.stats-section, .filter-section { flex-shrink: 0; margin-bottom: 1rem; }
+.stats-section, .filter-section { flex-shrink: 0; margin-bottom: 0.75rem; }
 
 .toolbar-section {
     background: white;
     border-radius: 0.5rem 0.5rem 0 0;
-    padding: 1rem;
+    padding: 0.75rem;
     border-bottom: 1px solid #f3f4f6;
     flex-shrink: 0;
 }
 
-.toolbar-content { display: flex; flex-direction: column; gap: 1rem; }
+.toolbar-content { display: flex; flex-direction: column; gap: 0.75rem; }
 @media (min-width: 768px) { .toolbar-content { flex-direction: row; align-items: center; justify-content: space-between; } }
 
 /* Table Section */
@@ -479,7 +600,7 @@ onBeforeUnmount(() => cleanup && cleanup())
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem;
+    padding: 0.75rem;
     border-bottom: 1px solid #f3f4f6;
     flex-shrink: 0;
 }
@@ -493,13 +614,20 @@ onBeforeUnmount(() => cleanup && cleanup())
     min-height: 0;
 }
 
+/* Table Pagination (inside table card) */
+.table-pagination {
+    flex-shrink: 0;
+    border-top: 1px solid #f3f4f6;
+    background: #ffffff;
+}
+
 /* DataTable Wrapper - Critical Fix */
 .data-table-wrapper {
     flex: 1;
     width: 100%;
     height: 100%;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
 }
 
 /* Pagination */

@@ -7,6 +7,7 @@ Import/Export API
 import frappe
 from product_sales_planning.utils.response_utils import success_response, error_response
 from product_sales_planning.utils.validation_utils import validate_required_params
+from product_sales_planning.services.commodity_service import CommodityScheduleService
 
 
 @frappe.whitelist()
@@ -34,8 +35,8 @@ def download_import_template(task_id=None):
 			bottom=Side(style='thin')
 		)
 
-		# 生成月份列
-		months = get_next_n_months(n=4, include_current=False)
+		# 生成月份列：优先使用任务日期范围
+		months = CommodityScheduleService.get_task_months(task_id, fallback_months=4) if task_id else get_next_n_months(n=4, include_current=False)
 
 		# 设置表头
 		headers = ['产品编码', '产品名称'] + months
@@ -131,7 +132,8 @@ def import_commodity_data(store_id, task_id, file_url):
 	try:
 		import openpyxl
 		from frappe.utils.file_manager import get_file_path
-		from product_sales_planning.utils.date_utils import parse_month_string, get_month_first_day
+		from product_sales_planning.utils.date_utils import parse_month_string
+		from product_sales_planning.utils.date_utils import get_month_first_day
 
 		validate_required_params(
 			{"store_id": store_id, "task_id": task_id},
@@ -167,6 +169,9 @@ def import_commodity_data(store_id, task_id, file_url):
 
 		if not month_columns:
 			return error_response(message="Excel格式错误：未找到月份列")
+
+		# 任务允许的月份集合（用于校验全量与对应月份）
+		allowed_months = set(CommodityScheduleService.get_task_months(task_id, fallback_months=4))
 
 		inserted_count = 0
 		updated_count = 0
@@ -213,6 +218,12 @@ def import_commodity_data(store_id, task_id, file_url):
 						errors.append(f"第{row_idx}行: 月份格式错误 ({month_str})")
 						continue
 
+					parsed_month = CommodityScheduleService.validate_month_in_task(task_id, parsed_month)
+					if allowed_months and parsed_month not in allowed_months:
+						errors.append(f"第{row_idx}行-{month_str}: 月份不在任务周期内")
+						continue
+
+					# 按日期落库：月份列统一写入该月第一天
 					sub_date = get_month_first_day(parsed_month)
 
 					# 检查记录是否存在

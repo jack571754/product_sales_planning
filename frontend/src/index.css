@@ -1,2 +1,12 @@
 @import './assets/Inter/inter.css';
 @import 'frappe-ui/style.css';
+
+/* Ensure frappe-ui dialogs always overlay Handsontable clones (ht_clone_top uses z-index: 160). */
+.dialog-overlay {
+	z-index: 1000;
+}
+
+/* Dropdown menu content should overlay Handsontable header clones (z-index: 160), but stay under dialogs. */
+.dropdown-content {
+	z-index: 900;
+}

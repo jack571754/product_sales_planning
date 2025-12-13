@@ -38,6 +38,7 @@
 								v-model="selectedBrand"
 								:options="brandOptions"
 								placeholder="全部品牌"
+								@update:model-value="handleFilterChange"
 							/>
 						</div>
 						
@@ -47,6 +48,7 @@
 								v-model="selectedCategory"
 								:options="categoryOptions"
 								placeholder="全部分类"
+								@update:model-value="handleFilterChange"
 							/>
 						</div>
 					</div>
@@ -54,7 +56,9 @@
 					<div class="filter-summary">
 						<div class="flex items-center gap-2 text-sm text-gray-600">
 							<FeatherIcon name="package" class="w-4 h-4" />
-							<span>候选商品：<strong class="text-gray-900">{{ filterResultCount }}</strong> 个</span>
+							<span>
+								候选商品：<strong class="text-gray-900">{{ totalItems }}</strong> 个
+							</span>
 						</div>
 						<Badge v-if="selectedProducts.size" theme="blue" size="md">
 							<FeatherIcon name="check-circle" class="w-3 h-3 mr-1" />
@@ -86,15 +90,23 @@
 					<!-- 商品列表 -->
 					<div v-else class="product-list">
 						<!-- 全选选项 -->
-						<div class="select-all-item">
+						<div
+							class="select-all-item"
+							role="button"
+							tabindex="0"
+							@click="toggleSelectAll"
+							@keydown.enter.prevent="toggleSelectAll"
+							@keydown.space.prevent="toggleSelectAll"
+						>
 							<Checkbox
 								:model-value="isAllSelected"
+								@click.stop
 								@change="toggleSelectAll"
 							/>
-							<label class="select-all-label" @click="toggleSelectAll">
+							<label class="select-all-label">
 								<span class="font-medium">全选当前页</span>
 								<span class="text-gray-500 text-sm ml-2">
-									(已选择 {{ selectedProducts.size }} / {{ filteredProducts.length }} 个)
+									(已选择 {{ selectedInCurrentPageCount }} / {{ selectableCurrentPageCount }} 个)
 								</span>
 							</label>
 						</div>
@@ -156,7 +168,7 @@
 				<div v-if="totalPages > 1" class="pagination-section">
 					<div class="pagination-info">
 						显示 <strong>{{ startIndex }}</strong> - <strong>{{ endIndex }}</strong> 条，
-						共 <strong>{{ filteredProducts.length }}</strong> 条
+						共 <strong>{{ totalItems }}</strong> 条
 					</div>
 					<div class="pagination-controls">
 						<Button
@@ -254,6 +266,9 @@ const selectedCategory = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
 const searchDebounceTimer = ref(null)
+const latestRequestId = ref(0)
+const totalItems = ref(0)
+const facets = ref({ brands: [], categories: [] })
 
 const dialogOpen = computed({
 	get: () => props.show,
@@ -264,19 +279,11 @@ const dialogOpen = computed({
 
 // 品牌和分类列表
 const brands = computed(() => {
-	const brandSet = new Set()
-	products.value.forEach(p => {
-		if (p.brand) brandSet.add(p.brand)
-	})
-	return Array.from(brandSet).sort()
+	return (facets.value?.brands || []).slice()
 })
 
 const categories = computed(() => {
-	const categorySet = new Set()
-	products.value.forEach(p => {
-		if (p.category) categorySet.add(p.category)
-	})
-	return Array.from(categorySet).sort()
+	return (facets.value?.categories || []).slice()
 })
 
 const brandOptions = computed(() => [{ label: '全部品牌', value: '' }, ...brands.value.map(b => ({ label: b, value: b }))])
@@ -292,49 +299,24 @@ const isProductAdded = (product) => {
 	return existingProductCodes.value.has(product.code)
 }
 
-// 筛选后的产品
-const filteredProducts = computed(() => {
-	let result = products.value
-
-	if (debouncedSearchTerm.value) {
-		const search = debouncedSearchTerm.value.toLowerCase()
-		result = result.filter(p => {
-			return (
-				(p.code || '').toLowerCase().includes(search) ||
-				(p.name1 || '').toLowerCase().includes(search)
-			)
-		})
-	}
-
-	if (selectedBrand.value) {
-		result = result.filter(p => p.brand === selectedBrand.value)
-	}
-
-	if (selectedCategory.value) {
-		result = result.filter(p => p.category === selectedCategory.value)
-	}
-
-	return result
+const selectableCurrentPageCount = computed(() => products.value.filter(p => !isProductAdded(p)).length)
+const selectedInCurrentPageCount = computed(() => {
+	return products.value.filter(p => selectedProducts.value.has(p.code) && !isProductAdded(p)).length
 })
 
-// 筛选结果数量
-const filterResultCount = computed(() => filteredProducts.value.length)
-
-// 分页后的产品
-const paginatedProducts = computed(() => {
-	const start = (currentPage.value - 1) * pageSize.value
-	const end = start + pageSize.value
-	return filteredProducts.value.slice(start, end)
-})
+const paginatedProducts = computed(() => products.value)
 
 // 总页数
-const totalPages = computed(() => Math.ceil(filteredProducts.value.length / pageSize.value) || 1)
+const totalPages = computed(() => Math.ceil((totalItems.value || 0) / pageSize.value) || 1)
 
 // 显示范围
-const startIndex = computed(() => (currentPage.value - 1) * pageSize.value + 1)
+const startIndex = computed(() => {
+	if (totalItems.value === 0) return 0
+	return (currentPage.value - 1) * pageSize.value + 1
+})
 const endIndex = computed(() => {
 	const end = currentPage.value * pageSize.value
-	return end > filteredProducts.value.length ? filteredProducts.value.length : end
+	return end > totalItems.value ? totalItems.value : end
 })
 
 // 是否全选
@@ -347,20 +329,32 @@ const isAllSelected = computed(() => {
 const loadProducts = async () => {
 	loading.value = true
 	try {
-		const response = await call('frappe.client.get_list', {
-			doctype: 'Product List',
-			fields: ['name as code', 'name1', 'specifications', 'brand', 'category'],
-			limit_page_length: 500,
-			or_filters: searchTerm.value
-				? [
-					['code', 'like', `%${searchTerm.value}%`],
-					['name1', 'like', `%${searchTerm.value}%`]
-				]
-				: [],
-			order_by: 'name1 asc'
-		})
+		const requestId = ++latestRequestId.value
 
-		products.value = Array.isArray(response) ? response : []
+		const response = await call(
+			'product_sales_planning.api.v1.commodity.get_product_list_for_dialog',
+			{
+				store_id: props.storeId,
+				task_id: props.taskId,
+				search_term: debouncedSearchTerm.value || '',
+				brand: selectedBrand.value || '',
+				category: selectedCategory.value || '',
+				page: currentPage.value,
+				page_size: pageSize.value
+			}
+		)
+
+		if (requestId !== latestRequestId.value) return
+
+		if (response?.status === 'success') {
+			products.value = Array.isArray(response.data) ? response.data : []
+			totalItems.value = Number(response.total || 0)
+			facets.value = response.facets || { brands: [], categories: [] }
+		} else {
+			products.value = []
+			totalItems.value = 0
+			toast.error(response?.message || '加载产品失败')
+		}
 	} catch (error) {
 		toast.error(error.message || '加载产品失败')
 	} finally {
@@ -402,6 +396,7 @@ const toggleSelectAll = () => {
 const goToPage = (page) => {
 	if (page < 1 || page > totalPages.value) return
 	currentPage.value = page
+	loadProducts()
 }
 
 // 处理添加
@@ -426,7 +421,11 @@ const handleAdd = async () => {
 		if (response && response.status === 'success') {
 			const skippedMessage = response.skipped > 0 ? `，跳过 ${response.skipped} 个已存在的商品` : ''
 			toast.success(`成功添加 ${response.count} 个商品${skippedMessage}`)
-			emit('success')
+			emit('success', {
+				addedCodes: productCodes,
+				count: response.count,
+				skipped: response.skipped || 0
+			})
 			handleClose()
 		} else {
 			toast.error(response?.msg || response?.message || '添加失败')
@@ -449,6 +448,11 @@ const handleClose = () => {
 	emit('close')
 }
 
+const handleFilterChange = () => {
+	currentPage.value = 1
+	loadProducts()
+}
+
 // 输入防抖
 const handleSearchInput = (value) => {
 	searchTerm.value = value
@@ -463,22 +467,20 @@ watch(searchTerm, (newVal) => {
 	searchDebounceTimer.value = setTimeout(() => {
 		debouncedSearchTerm.value = newVal
 		currentPage.value = 1
+		loadProducts()
 	}, 300)
 })
 
-// 监听筛选条件变化，重置到第一页
-watch([selectedBrand, selectedCategory], () => {
-	currentPage.value = 1
-})
-
-// 监听防抖后的搜索词变化
-watch(debouncedSearchTerm, () => {
-	currentPage.value = 1
+watch(existingProductCodes, () => {
+	// 现有商品变化时，清除不可再选项，避免计数不一致
+	const next = new Set(Array.from(selectedProducts.value).filter(code => !existingProductCodes.value.has(code)))
+	selectedProducts.value = next
 })
 
 // 监听对话框显示状态
 watch(() => props.show, (newVal) => {
 	if (newVal) {
+		currentPage.value = 1
 		loadProducts()
 	}
 })

@@ -74,6 +74,20 @@ class APITestSuite:
 		
 		self.results.append(test_result)
 		return test_result
+
+	def record_internal_test(self, name, passed, description="", details=None):
+		"""记录不依赖 HTTP/Frappe Call 的内部测试结果。"""
+		test_result = {
+			"api": name,
+			"description": description,
+			"status": "✓ 成功" if passed else "✗ 失败",
+			"params": None,
+			"response": details,
+			"error": None if passed else (details.get("error") if isinstance(details, dict) else str(details)),
+		}
+		self.results.append(test_result)
+		print(f"{'✓' if passed else '✗'} {name} - {description}")
+		return test_result
 	
 	def run_dashboard_tests(self):
 		"""测试Dashboard API"""
@@ -122,32 +136,165 @@ class APITestSuite:
 				},
 				description="获取任务店铺状态"
 			)
-	
+
 	def run_commodity_tests(self):
 		"""测试Commodity API"""
 		print("\n📦 测试Commodity API...")
-		
+
 		module = "product_sales_planning.api.v1.commodity"
-		
+
 		# 测试获取商品数据
 		if self.test_data["store_id"]:
-			self.test_api(
-				module, "get_store_commodity_data",
+			res = self.test_api(
+				module,
+				"get_store_commodity_data",
 				params={
 					"store_id": self.test_data["store_id"],
 					"task_id": self.test_data["task_id"],
 					"start": 0,
-					"page_length": 10
+					"page_length": 10,
 				},
-				description="获取商品计划数据"
+				description="获取商品计划数据",
 			)
-		
+			# 关键字段检查：前端依赖 `status` 来判断渲染与错误处理（兼容旧版本）
+			if res.get("response") and isinstance(res["response"], dict) and "status" not in res["response"]:
+				res["status"] = "✗ 失败"
+				res["error"] = "响应缺少 status 字段"
+				print(f"✗ {module}.get_store_commodity_data - 响应缺少 status 字段")
+
 		# 测试获取商品列表
 		self.test_api(
-			module, "get_product_list_for_dialog",
-			params={"limit": 10},
-			description="获取商品选择列表"
+			module,
+			"get_product_list_for_dialog",
+			params={"page": 1, "page_size": 10},
+			description="获取商品选择列表",
 		)
+
+		# 内部兼容性测试
+		self._test_task_months_from_task_id()
+		self._test_multi_month_view_handles_empty_schedule_list()
+		self._test_multi_month_view_respects_default_months()
+
+	def _test_multi_month_view_handles_empty_schedule_list(self):
+		"""覆盖：无任何计划记录时，多月视图仍应返回 default_months 作为表头且不报错。"""
+		from product_sales_planning.services.commodity_service import CommodityScheduleService
+
+		default_months = ["2025-12", "2026-01", "2026-02", "2026-03"]
+
+		try:
+			result = CommodityScheduleService._get_multi_month_view(
+				[],
+				brand=None,
+				category=None,
+				search_term=None,
+				default_months=default_months,
+			)
+			passed = (
+				(result.get("data") or []) == []
+				and (result.get("months") or []) == default_months
+				and int(result.get("total_count") or 0) == 0
+				and result.get("view_mode") == "multi"
+			)
+			details = {"result": result, "expected_months": default_months}
+			if not passed:
+				details["error"] = "期望 data 为空且 months 等于 default_months，并返回 view_mode=multi"
+			self.record_internal_test(
+				"CommodityScheduleService._get_multi_month_view_empty",
+				passed,
+				description="空计划记录时仍返回月份表头且不报错",
+				details=details,
+			)
+		except Exception as e:
+			self.record_internal_test(
+				"CommodityScheduleService._get_multi_month_view_empty",
+				False,
+				description="空计划记录时仍返回月份表头且不报错",
+				details={"error": str(e)},
+			)
+
+	def _test_task_months_from_task_id(self):
+		"""覆盖：任务编号 `YYYY-MM-...` 应生成从该月起未来4个月"""
+		from product_sales_planning.services.commodity_service import CommodityScheduleService
+
+		task_id = "2025-12-MON-745"
+		expected = ["2025-12", "2026-01", "2026-02", "2026-03"]
+
+		try:
+			months = CommodityScheduleService.get_task_months(task_id, fallback_months=4)
+			passed = months == expected
+			details = {"task_id": task_id, "months": months, "expected": expected}
+			if not passed:
+				details["error"] = "get_task_months 返回月份不符合预期"
+			self.record_internal_test(
+				"CommodityScheduleService.get_task_months",
+				passed,
+				description="从任务编号解析月份并生成未来4个月",
+				details=details,
+			)
+		except Exception as e:
+			self.record_internal_test(
+				"CommodityScheduleService.get_task_months",
+				False,
+				description="从任务编号解析月份并生成未来4个月",
+				details={"error": str(e)},
+			)
+
+	def _test_multi_month_view_respects_default_months(self):
+		"""覆盖：多月视图应严格按 default_months 过滤数据，但仍返回 default_months 作为表头"""
+		from product_sales_planning.services.commodity_service import CommodityScheduleService
+
+		# 构造一条 2025-12 的计划记录
+		schedules = [
+			frappe._dict(
+				{
+					"name": "TEST-CS-1",
+					"code": "TEST-PROD-1",
+					"quantity": 10,
+					"sub_date": datetime(2025, 12, 1),
+					"creation": datetime(2025, 12, 1, 12, 0, 0),
+				}
+			)
+		]
+
+		# 默认月份故意设置为不相关月份，数据应被过滤，但表头仍返回 default_months
+		default_months = ["2026-01", "2026-02", "2026-03", "2026-04"]
+
+		original_get_all = frappe.get_all
+
+		def patched_get_all(doctype, *args, **kwargs):
+			if doctype == "Product List":
+				return []
+			return original_get_all(doctype, *args, **kwargs)
+
+		try:
+			frappe.get_all = patched_get_all
+			result = CommodityScheduleService._get_multi_month_view(
+				schedules,
+				brand=None,
+				category=None,
+				search_term=None,
+				default_months=default_months,
+			)
+
+			passed = not (result.get("data") or []) and (result.get("months") or []) == default_months
+			details = {"result": result}
+			if not passed:
+				details["error"] = "期望 data 为空且 months 等于 default_months"
+			self.record_internal_test(
+				"CommodityScheduleService._get_multi_month_view",
+				passed,
+				description="default_months 过滤数据但仍返回表头月份",
+				details=details,
+			)
+		except Exception as e:
+			self.record_internal_test(
+				"CommodityScheduleService._get_multi_month_view",
+				False,
+				description="default_months 过滤数据但仍返回表头月份",
+				details={"error": str(e)},
+			)
+		finally:
+			frappe.get_all = original_get_all
 	
 	def run_approval_tests(self):
 		"""测试Approval API"""

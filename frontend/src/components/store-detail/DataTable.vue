@@ -1,338 +1,384 @@
 <template>
-    <div class="h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-        <div class="border-b border-gray-100 p-3 bg-gray-50">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <h2 class="text-base font-semibold text-gray-800">商品计划数据</h2>
-                    
-                    <div class="h-4 w-px bg-gray-300 mx-1"></div>
-
-                    <Dropdown :options="batchActions" placement="bottom-start">
-                        <template #default="{ open }">
-                            <Button 
-                                variant="subtle" 
-                                theme="gray" 
-                                size="sm"
-                                :disabled="!hasData"
-                            >
-                                <template #prefix>
-                                    <FeatherIcon name="check-square" class="h-4 w-4" />
-                                </template>
-                                批量选择
-                                <template #suffix>
-                                    <FeatherIcon :name="open ? 'chevron-up' : 'chevron-down'" class="h-4 w-4" />
-                                </template>
-                            </Button>
-                        </template>
-                    </Dropdown>
-
-                    <transition name="fade">
-                        <Badge v-if="selectedCount > 0" theme="blue" variant="subtle" class="ml-1">
-                            已选 {{ selectedCount }} 项
-                        </Badge>
-                    </transition>
-                </div>
-
-                <div class="flex items-center gap-2">
-                    <span v-if="lastSaveTime" class="text-xs text-green-600 flex items-center gap-1 mr-2">
-                        <FeatherIcon name="check" class="h-3 w-3" />
-                        {{ formatSaveTime(lastSaveTime) }} 已保存
-                    </span>
-
-                    <Dropdown :options="columnMenuOptions" placement="bottom-end">
-                        <template #default="{ open }">
-                            <Button variant="outline" theme="gray" size="sm">
-                                <template #prefix>
-                                    <FeatherIcon name="columns" class="h-4 w-4" />
-                                </template>
-                                列设置
-                            </Button>
-                        </template>
-                    </Dropdown>
-                </div>
-            </div>
-        </div>
-
-        <div class="flex-1 relative w-full overflow-hidden">
-             <div ref="hotTableContainer" class="hot-table-wrapper h-full w-full absolute inset-0"></div>
-        </div>
-
-        <div class="bg-gray-50 border-t border-gray-100 px-3 py-1.5 text-xs text-gray-500 flex justify-between items-center">
-            <div>
-                <span class="font-medium text-gray-600">快捷键：</span>
-                <span class="bg-gray-200 px-1 rounded mx-1">Ctrl+C/V</span> 复制粘贴
-                <span class="bg-gray-200 px-1 rounded mx-1 ml-2">Double Click</span> 编辑
-            </div>
-            <div>
-                共 {{ props.data.length }} 条数据
-            </div>
-        </div>
-    </div>
+	<div class="h-full w-full relative overflow-hidden">
+		<div ref="hotTableContainer" class="hot-table-wrapper absolute inset-0"></div>
+	</div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { Button, Badge, Dropdown, FeatherIcon, toast } from 'frappe-ui'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { toast } from 'frappe-ui'
 import Handsontable from 'handsontable'
 import 'handsontable/dist/handsontable.full.min.css'
 import { debounce } from '../../utils/helpers'
 
 // ==================== Props ====================
 const props = defineProps({
-    data: {
-        type: Array,
-        required: true,
-        default: () => []
-    },
-    columns: {
-        type: Array,
-        required: true,
-        default: () => []
-    },
-    readOnly: { type: Boolean, default: false },
-    canEdit: { type: Boolean, default: true },
-    hiddenColumns: { type: Array, default: () => [] }
+	data: {
+		type: Array,
+		required: true,
+		default: () => []
+	},
+	columns: {
+		type: Array,
+		required: true,
+		default: () => []
+	},
+	readOnly: { type: Boolean, default: false },
+	canEdit: { type: Boolean, default: true },
+	hiddenColumns: { type: Array, default: () => [] }
 })
 
 // ==================== Emits ====================
-const emit = defineEmits(['update:data', 'change', 'selection-change', 'toggle-column'])
+const emit = defineEmits(['change', 'selection-change'])
 
 // ==================== Refs ====================
 const hotTableContainer = ref(null)
 const hotInstance = ref(null)
 const selectedRows = ref(new Set())
-const lastSaveTime = ref(null)
 const isUpdating = ref(false)
-
-// ==================== Computed ====================
-const selectedCount = computed(() => selectedRows.value.size)
-const hasData = computed(() => props.data.length > 0)
-
-// 批量操作菜单配置
-const batchActions = computed(() => [
-    {
-        label: '全选所有行',
-        icon: 'check-circle',
-        onClick: selectAll
-    },
-    {
-        label: '反向选择',
-        icon: 'refresh-cw',
-        onClick: invertSelection
-    },
-    {
-        label: '清除选择',
-        icon: 'x',
-        onClick: clearSelection
-    }
-])
-
-// 列菜单选项
-const columnMenuOptions = computed(() => {
-    return props.columns
-        .filter(col => col.data !== '__selected')
-        .map(col => ({
-            label: col.title,
-            icon: props.hiddenColumns.includes(col.data) ? 'eye-off' : 'eye',
-            onClick: () => toggleColumn(col.data)
-        }))
-})
 
 // ==================== Methods ====================
 
-const initHandsontable = () => {
-    if (!hotTableContainer.value || hotInstance.value) return
+const getCheckboxColIndex = () => props.columns.findIndex((col) => col.data === '__selected')
 
-    try {
-        const columns = props.columns.map(col => {
-            const config = {
-                data: col.data,
-                title: col.title || col.data,
-                readOnly: props.readOnly || !props.canEdit || col.readOnly,
-                className: col.className || 'htCenter htMiddle'
-            }
-            if (col.type === 'checkbox') {
-                config.type = 'checkbox'
-                config.className = 'htCenter htMiddle checkbox-column'
-            } else if (col.type === 'numeric') {
-                config.type = 'numeric'
-                config.numericFormat = col.numericFormat || { pattern: '0,0', culture: 'zh-CN' }
-            }
-            if (col.width) config.width = col.width
-            return config
-        })
+const buildHotSettings = () => {
+	const colHeaders = props.columns.map((col) => (col.title === undefined ? col.data : col.title))
+	const columns = props.columns.map((col) => {
+		const config = {
+			data: col.data,
+			readOnly: props.readOnly || !props.canEdit || col.readOnly,
+			className: col.className || 'htCenter htMiddle'
+		}
+		if (col.type === 'checkbox') {
+			config.type = 'checkbox'
+			config.className = 'htCenter htMiddle checkbox-column'
+		} else if (col.type === 'numeric') {
+			config.type = 'numeric'
+			config.numericFormat = col.numericFormat || { pattern: '0,0', culture: 'zh-CN' }
+		}
+		if (col.width) config.width = col.width
+		return config
+	})
 
-        const hiddenColumnsPlugin = {
-            columns: props.hiddenColumns.map(colName => 
-                props.columns.findIndex(col => col.data === colName)
-            ).filter(index => index !== -1)
-        }
-
-        hotInstance.value = new Handsontable(hotTableContainer.value, {
-            data: props.data,
-            columns: columns,
-            // --- 核心优化配置 ---
-            colHeaders: true,
-            rowHeaders: true,
-            width: '100%',
-            height: '100%', // 配合 flex 布局撑满
-            maxRows: props.data.length,
-            stretchH: 'all',
-            autoWrapRow: true,
-            autoWrapCol: true,
-            licenseKey: 'non-commercial-and-evaluation',
-            
-            // 冻结列：冻结前2列（复选框 + 商品名称/编码），根据实际情况调整数字
-            fixedColumnsStart: 2, 
-            
-            // UI 优化
-            rowHeights: 36, // 统一行高，更整洁
-            headerTooltips: true,
-            
-            contextMenu: true,
-            manualColumnResize: true,
-            columnSorting: true,
-            sortIndicator: true,
-            copyPaste: { enabled: true, pasteMode: 'overwrite' },
-            undo: true,
-            hiddenColumns: hiddenColumnsPlugin,
-            
-            cells: function(row, col) {
-                const cellProperties = {}
-                const colData = columns[col]
-                
-                if (colData?.data === '__selected') {
-                    cellProperties.className = 'htCenter htMiddle checkbox-cell'
-                }
-                // 商品名称强制不换行，用省略号
-                else if (colData?.data === 'product_name' || colData?.data === 'item_name') {
-                    cellProperties.className = 'htLeft htMiddle text-ellipsis-cell'
-                }
-                else if (colData?.readOnly) {
-                    cellProperties.className = 'htDimmed'
-                }
-                return cellProperties
-            },
-            
-            afterChange: handleAfterChange,
-            afterSelection: handleAfterSelection,
-            afterDeselect: handleAfterDeselect,
-        })
-		// 新增：强制刷新一次布局，解决某些情况下初始高度为0的问题
-		requestAnimationFrame(() => {
-            if (hotInstance.value) {
-                hotInstance.value.render()
-            }
-        })
-    } catch (error) {
-        console.error('❌ Handsontable 初始化失败:', error)
-        toast.error('表格初始化失败')
-    }
+	return { colHeaders, columns }
 }
 
-// ... (保留原有的 handleAfterChange, handleAfterSelection 等逻辑代码，无需修改) ...
-// 注意：为了篇幅，我省略了未修改的逻辑函数（handleAfterChange, selectAll 等），
-// 请确保在你的实际文件中保留它们，或者直接复制你原来文件中的 methods 部分到这里。
+const applyHiddenColumns = () => {
+	const hot = hotInstance.value
+	if (!hot) return
 
-// 下面是补充的辅助函数（如果原文件没有的话）
+	const plugin = hot.getPlugin('hiddenColumns')
+	if (!plugin) return
+
+	plugin.showColumns(plugin.getHiddenColumns())
+	const indexes = (props.hiddenColumns || [])
+		.map((c) => props.columns.findIndex((col) => col.data === c))
+		.filter((i) => i !== -1)
+	if (indexes.length) plugin.hideColumns(indexes)
+	hot.render?.()
+}
+
+const withBatch = (fn) => {
+	const hot = hotInstance.value
+	if (!hot) return
+	if (typeof hot.batch === 'function') return hot.batch(fn)
+	return fn()
+}
+
+const withSuspendRender = (fn) => {
+	const hot = hotInstance.value
+	if (!hot) return
+	if (typeof hot.suspendRender !== 'function' || typeof hot.resumeRender !== 'function') return fn()
+	hot.suspendRender()
+	try {
+		return fn()
+	} finally {
+		hot.resumeRender()
+	}
+}
+
+const initHandsontable = () => {
+	if (!hotTableContainer.value || hotInstance.value) return
+
+	try {
+		const { colHeaders, columns } = buildHotSettings()
+
+		const hiddenColumnsPlugin = {
+			columns: props.hiddenColumns
+				.map((colName) => props.columns.findIndex((col) => col.data === colName))
+				.filter((index) => index !== -1)
+		}
+
+		hotInstance.value = new Handsontable(hotTableContainer.value, {
+			data: props.data,
+			columns,
+			colHeaders,
+			rowHeaders: true,
+			width: '100%',
+			height: '100%',
+			stretchH: 'all',
+			autoWrapRow: true,
+			autoWrapCol: true,
+			licenseKey: 'non-commercial-and-evaluation',
+
+			fixedColumnsStart: 2,
+			rowHeights: 36,
+			headerTooltips: true,
+
+			contextMenu: true,
+			manualColumnResize: true,
+			columnSorting: true,
+			sortIndicator: true,
+			copyPaste: { enabled: true, pasteMode: 'overwrite' },
+			undo: true,
+			hiddenColumns: hiddenColumnsPlugin,
+
+			cells(row, col) {
+				const cellProperties = {}
+				const colData = columns[col]
+
+				if (colData?.data === '__selected') {
+					cellProperties.className = 'htCenter htMiddle checkbox-cell'
+				} else if (
+					['product_name', 'item_name', 'name1', 'commodity_name', 'product_title'].includes(colData?.data)
+				) {
+					cellProperties.className = 'htLeft htMiddle text-ellipsis-cell'
+				} else if (colData?.readOnly) {
+					cellProperties.className = 'htDimmed'
+				}
+				return cellProperties
+			},
+
+			afterChange: handleAfterChange,
+			afterSelection: handleAfterSelection,
+			afterDeselect: handleAfterDeselect,
+			afterOnCellMouseDown: handleCellMouseDown
+		})
+
+			syncSelectionFromData(props.data)
+
+			requestAnimationFrame(() => {
+				hotInstance.value?.render?.()
+			})
+	} catch (error) {
+		console.error('❌ Handsontable 初始化失败:', error)
+		toast.error('表格初始化失败')
+	}
+}
+
 const handleAfterChange = (changes, source) => {
-    if (!changes || source === 'loadData' || isUpdating.value) return
-    changes.forEach(([row, prop, oldValue, newValue]) => {
-        if (prop === '__selected') {
-            newValue ? selectedRows.value.add(row) : selectedRows.value.delete(row)
-        }
-    })
-    emit('change', changes, source)
-    if (source === 'edit' || source === 'CopyPaste.paste') debouncedSave(changes)
+	if (!changes || source === 'loadData' || isUpdating.value) return
+
+	let selectionChanged = false
+	const dataChanges = []
+
+	changes.forEach(([row, prop, oldValue, newValue]) => {
+		// 勾选列只更新选择状态，不触发保存逻辑
+		if (prop === '__selected') {
+			selectionChanged = true
+			newValue ? selectedRows.value.add(row) : selectedRows.value.delete(row)
+			return
+		}
+
+		const colIndex = typeof prop === 'number' ? prop : props.columns.findIndex((col) => col.data === prop)
+		if (colIndex === -1) return
+		dataChanges.push([row, colIndex, oldValue, newValue])
+	})
+
+	if (selectionChanged) emit('selection-change', Array.from(selectedRows.value))
+	if (dataChanges.length) emit('change', dataChanges, source)
 }
 
 const handleAfterSelection = debounce((row, column, row2, column2) => {
-    if (isUpdating.value) return
-    const checkboxColIndex = props.columns.findIndex(col => col.data === '__selected')
-    if (column !== checkboxColIndex && column2 !== checkboxColIndex) return
-    
-    const startRow = Math.min(row, row2)
-    const endRow = Math.max(row, row2)
-    for (let i = startRow; i <= endRow; i++) {
-        const data = hotInstance.value.getDataAtRow(i)
-        if (data && data[0]) selectedRows.value.add(i)
-    }
-    emit('selection-change', Array.from(selectedRows.value))
+	if (isUpdating.value) return
+	const checkboxColIndex = getCheckboxColIndex()
+	if (column !== checkboxColIndex && column2 !== checkboxColIndex) return
+
+	const startRow = Math.min(row, row2)
+	const endRow = Math.max(row, row2)
+	for (let i = startRow; i <= endRow; i++) {
+		const checked = hotInstance.value?.getDataAtRowProp(i, '__selected')
+		if (checked) selectedRows.value.add(i)
+	}
+	emit('selection-change', Array.from(selectedRows.value))
 }, 200)
 
+const handleCellMouseDown = (event, coords) => {
+	if (!hotInstance.value || isUpdating.value) return
+	if (!coords || coords.row < 0) return
+
+	// 点击行号（row header）时切换勾选状态，避免“点击无反应”
+	if (coords.col === -1) {
+		const current = !!hotInstance.value.getDataAtRowProp(coords.row, '__selected')
+		hotInstance.value.setDataAtRowProp(coords.row, '__selected', !current, 'selection')
+	}
+}
+
 const handleAfterDeselect = () => {}
-const debouncedSave = debounce((changes) => { lastSaveTime.value = new Date() }, 1000)
+
+const applySelectionChanges = (rowValues) => {
+	const hot = hotInstance.value
+	if (!hot || !Array.isArray(rowValues) || rowValues.length === 0) return
+
+	const changes = rowValues.map(([row, value]) => [row, '__selected', value])
+
+	isUpdating.value = true
+	try {
+		withBatch(() =>
+			withSuspendRender(() => {
+				// setDataAtRowProp 支持批量形式（不同版本如不支持则 fallback）
+				try {
+					hot.setDataAtRowProp(changes, 'selection')
+				} catch (err) {
+					const checkboxColIndex = getCheckboxColIndex()
+					if (checkboxColIndex >= 0 && typeof hot.setDataAtCell === 'function') {
+						const cellChanges = rowValues.map(([row, value]) => [row, checkboxColIndex, value])
+						hot.setDataAtCell(cellChanges, 'selection')
+					} else {
+						rowValues.forEach(([row, value]) => {
+							hot.setDataAtRowProp(row, '__selected', value, 'selection')
+						})
+					}
+				}
+			})
+		)
+	} finally {
+		isUpdating.value = false
+	}
+
+	hot.render?.()
+}
 
 const selectAll = () => {
-    if (!hotInstance.value) return
-    const data = hotInstance.value.getData()
-    data.forEach((_, index) => {
-        hotInstance.value.setDataAtRowProp(index, '__selected', true)
-        selectedRows.value.add(index)
-    })
-    emit('selection-change', Array.from(selectedRows.value))
+	const hot = hotInstance.value
+	if (!hot) return
+
+	const rowCount = hot.countRows?.() ?? props.data.length
+	const nextSelected = new Set()
+	const rowValues = []
+
+	for (let i = 0; i < rowCount; i++) {
+		nextSelected.add(i)
+		rowValues.push([i, true])
+	}
+
+	applySelectionChanges(rowValues)
+	selectedRows.value = nextSelected
+	emit('selection-change', Array.from(selectedRows.value))
 }
 
 const invertSelection = () => {
-    if (!hotInstance.value) return
-    const data = hotInstance.value.getData()
-    data.forEach((_, index) => {
-        const val = hotInstance.value.getDataAtRowProp(index, '__selected')
-        hotInstance.value.setDataAtRowProp(index, '__selected', !val)
-        !val ? selectedRows.value.add(index) : selectedRows.value.delete(index)
-    })
-    emit('selection-change', Array.from(selectedRows.value))
+	const hot = hotInstance.value
+	if (!hot) return
+
+	const rowCount = hot.countRows?.() ?? props.data.length
+	const checkboxColIndex = getCheckboxColIndex()
+	const currentValues =
+		checkboxColIndex >= 0 && typeof hot.getDataAtCol === 'function' ? hot.getDataAtCol(checkboxColIndex) : []
+
+	const nextSelected = new Set()
+	const rowValues = []
+
+	for (let i = 0; i < rowCount; i++) {
+		const current = !!(currentValues?.[i] ?? hot.getDataAtRowProp?.(i, '__selected'))
+		const next = !current
+		rowValues.push([i, next])
+		if (next) nextSelected.add(i)
+	}
+
+	applySelectionChanges(rowValues)
+	selectedRows.value = nextSelected
+	emit('selection-change', Array.from(selectedRows.value))
 }
 
 const clearSelection = () => {
-    if (!hotInstance.value) return
-    hotInstance.value.getData().forEach((_, index) => {
-        hotInstance.value.setDataAtRowProp(index, '__selected', false)
-    })
-    selectedRows.value.clear()
-    emit('selection-change', [])
+	const hot = hotInstance.value
+	if (!hot) return
+
+	const rowCount = hot.countRows?.() ?? props.data.length
+	const rowValues = []
+	for (let i = 0; i < rowCount; i++) rowValues.push([i, false])
+
+	applySelectionChanges(rowValues)
+	selectedRows.value = new Set()
+	emit('selection-change', [])
 }
 
-const toggleColumn = (col) => emit('toggle-column', col)
+const syncSelectionFromData = (data) => {
+	const nextSelected = new Set()
+	;(data || []).forEach((row, index) => {
+		if (row && row.__selected) nextSelected.add(index)
+	})
+	const prevSelected = selectedRows.value
+	const isSame =
+		prevSelected.size === nextSelected.size && Array.from(prevSelected).every((index) => nextSelected.has(index))
 
-const formatSaveTime = (time) => {
-   if (!time) return ''
-   const now = new Date(); const diff = Math.floor((now - time) / 1000);
-   return diff < 60 ? '刚刚' : diff < 3600 ? `${Math.floor(diff/60)}分钟前` : time.toLocaleTimeString()
+	if (isSame) return
+
+	selectedRows.value = nextSelected
+	emit('selection-change', Array.from(selectedRows.value))
 }
 
 const updateData = (newData) => {
-    if (!hotInstance.value) return
-    isUpdating.value = true
-    hotInstance.value.loadData(newData)
-    setTimeout(() => isUpdating.value = false, 100)
+	if (!hotInstance.value) return
+	const safeData = Array.isArray(newData) ? newData : []
+	isUpdating.value = true
+	try {
+		hotInstance.value.loadData(safeData)
+		syncSelectionFromData(safeData)
+	} finally {
+		setTimeout(() => (isUpdating.value = false), 0)
+	}
 }
 
 const getSelectedRows = () => Array.from(selectedRows.value).map(i => hotInstance.value.getDataAtRow(i))
 
 // ==================== Watchers & Lifecycle ====================
-let lastDataHash = ''
-watch(() => props.data, (newData) => {
-    if (!hotInstance.value || !newData) return
-    const newHash = JSON.stringify(newData)
-    if (newHash === lastDataHash) return
-    lastDataHash = newHash
-    updateData(newData)
-}, { deep: true })
+watch(
+	() => props.data,
+	(newData) => {
+		if (!hotInstance.value) return
+		updateData(newData)
+	}
+)
+
+watch(
+	() => [props.columns, props.readOnly, props.canEdit],
+	() => {
+		const hot = hotInstance.value
+		if (!hot) return
+		const { colHeaders, columns } = buildHotSettings()
+
+		isUpdating.value = true
+		try {
+			withBatch(() =>
+				withSuspendRender(() => {
+					hot.updateSettings({ colHeaders, columns })
+				})
+			)
+			applyHiddenColumns()
+		} finally {
+			setTimeout(() => (isUpdating.value = false), 0)
+		}
+	},
+	{ deep: true }
+)
 
 watch(() => props.hiddenColumns, (newCols) => {
-    if (!hotInstance.value) return
-    const plugin = hotInstance.value.getPlugin('hiddenColumns')
-    plugin.showColumns(plugin.getHiddenColumns())
-    const indexes = newCols.map(c => props.columns.findIndex(col => col.data === c)).filter(i => i !== -1)
-    if (indexes.length) plugin.hideColumns(indexes)
-    hotInstance.value.render()
+	if (!hotInstance.value) return
+	applyHiddenColumns()
 }, { deep: true })
 
 onMounted(async () => { await nextTick(); initHandsontable() })
-onBeforeUnmount(() => { hotInstance.value?.destroy() })
+onBeforeUnmount(() => {
+	try {
+		hotInstance.value?.destroy?.()
+	} finally {
+		hotInstance.value = null
+	}
+})
 
-defineExpose({ updateData, getSelectedRows, selectAll, clearSelection, hotInstance })
+defineExpose({ updateData, getSelectedRows, selectAll, invertSelection, clearSelection, hotInstance })
 </script>
 
 <style scoped>
@@ -412,7 +458,6 @@ defineExpose({ updateData, getSelectedRows, selectAll, clearSelection, hotInstan
 /* 冻结列的分隔线阴影 - 增强立体感 */
 :deep(.handsontable .ht_clone_left) {
     box-shadow: 4px 0 8px -4px rgba(0, 0, 0, 0.1);
-    z-index: 10;
 }
 
 /* 淡入动画 */

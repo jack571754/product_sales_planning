@@ -1,15 +1,15 @@
 <template>
-	<div class="stats-cards grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-		<Card class="p-4" v-for="card in statCards" :key="card.label">
+	<div class="stats-cards grid grid-cols-1 md:grid-cols-3 gap-3">
+		<Card class="p-3" v-for="card in statCards" :key="card.label">
 			<div class="flex items-center justify-between">
 				<div>
-					<div class="text-sm text-gray-500 mb-1">{{ card.label }}</div>
-					<div :class="['text-2xl font-bold', card.color]">
+					<div class="text-xs text-gray-500 mb-0.5">{{ card.label }}</div>
+					<div :class="['text-xl font-bold', card.color]">
 						{{ card.value }}
 					</div>
 				</div>
-				<div :class="['w-12 h-12 rounded-full flex items-center justify-center', card.bg]">
-					<FeatherIcon :name="card.icon" class="w-6 h-6" :class="card.iconColor" />
+				<div :class="['w-10 h-10 rounded-full flex items-center justify-center', card.bg]">
+					<FeatherIcon :name="card.icon" class="w-5 h-5" :class="card.iconColor" />
 				</div>
 			</div>
 		</Card>

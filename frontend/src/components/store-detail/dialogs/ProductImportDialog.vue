@@ -129,7 +129,8 @@ const downloadTemplate = async () => {
 	downloading.value = true
 	try {
 		const response = await call(
-			'product_sales_planning.api.v1.import_export.download_import_template'
+			'product_sales_planning.api.v1.import_export.download_import_template',
+			{ task_id: props.taskId }
 		)
 
 		if (response && response.status === 'success') {

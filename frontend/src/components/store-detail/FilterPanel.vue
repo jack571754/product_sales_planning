@@ -1,6 +1,6 @@
 <template>
-	<Card class="p-4">
-		<div class="flex flex-wrap gap-4 items-end">
+	<Card class="p-3">
+		<div class="flex flex-wrap gap-3 items-end">
 			<!-- 搜索框 -->
 			<div class="flex-1 min-w-[240px]">
 				<Input
@@ -45,7 +45,7 @@
 			</div>
 		</div>
 
-		<div v-if="activeFilterCount > 0" class="mt-3 flex flex-wrap gap-2">
+		<div v-if="activeFilterCount > 0" class="mt-2 flex flex-wrap gap-2">
 			<Badge v-if="localFilters.search" theme="gray" size="sm">
 				搜索: {{ localFilters.search }}
 			</Badge>

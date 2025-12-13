@@ -1,5 +1,8 @@
 <template>
-	<Card class="p-4 flex flex-wrap items-center justify-between gap-3">
+	<component
+		:is="wrapperTag"
+		:class="wrapperClass"
+	>
 		<!-- 左侧：每页显示数量选择 -->
 		<div class="flex items-center gap-2">
 			<span class="text-sm text-gray-600">每页显示</span>
@@ -62,7 +65,7 @@
 				@click="goToPage(totalPages)"
 			/>
 		</div>
-	</Card>
+	</component>
 </template>
 
 <script setup>
@@ -90,6 +93,10 @@ const props = defineProps({
 	pageSizeOptions: {
 		type: Array,
 		default: () => [20, 50, 100, 200]
+	},
+	variant: {
+		type: String,
+		default: 'card' // 'card' | 'embedded'
 	}
 })
 
@@ -114,6 +121,15 @@ const endIndex = computed(() => {
 const pageSizeSelectOptions = computed(() =>
 	(props.pageSizeOptions || []).map(size => ({ label: `${size}`, value: size }))
 )
+
+const wrapperTag = computed(() => (props.variant === 'embedded' ? 'div' : Card))
+const wrapperClass = computed(() => {
+	const base = 'flex flex-wrap items-center justify-between gap-3'
+	if (props.variant === 'embedded') {
+		return `${base} p-3`
+	}
+	return `${base} p-4`
+})
 
 // 计算显示的页码（最多显示 7 个页码）
 const displayPages = computed(() => {

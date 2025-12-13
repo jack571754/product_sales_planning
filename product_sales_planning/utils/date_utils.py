@@ -6,6 +6,7 @@
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import frappe
+from frappe.utils import getdate
 
 
 def get_next_n_months(n=4, include_current=False):
@@ -79,6 +80,29 @@ def get_date_range_filter(months_ahead=4, include_current=False):
 	)
 
 
+def get_months_between(start_date, end_date):
+	"""
+	获取两个日期之间的月份列表（含首尾月份），返回格式 YYYY-MM。
+	"""
+	if not start_date or not end_date:
+		return []
+
+	start = getdate(start_date)
+	end = getdate(end_date)
+	if start > end:
+		start, end = end, start
+
+	cursor = start.replace(day=1)
+	end_month = end.replace(day=1)
+
+	months = []
+	while cursor <= end_month:
+		months.append(cursor.strftime("%Y-%m"))
+		cursor = cursor + relativedelta(months=1)
+
+	return months
+
+
 def parse_month_string(month_str):
 	"""
 	解析月份字符串为标准格式
@@ -109,3 +133,23 @@ def parse_month_string(month_str):
 		return None
 	except Exception:
 		return None
+
+
+def get_months_from(month_str, n=4):
+	"""
+	获取从指定月份开始的连续 N 个月（包含起始月），格式为 YYYY-MM。
+	"""
+	normalized = parse_month_string(month_str)
+	if not normalized:
+		return []
+
+	try:
+		start = datetime.strptime(normalized, "%Y-%m")
+	except ValueError:
+		return []
+
+	months = []
+	for i in range(int(n or 0)):
+		month_date = start + relativedelta(months=i)
+		months.append(month_date.strftime("%Y-%m"))
+	return months

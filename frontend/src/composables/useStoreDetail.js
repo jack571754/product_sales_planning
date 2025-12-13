@@ -21,6 +21,42 @@ import { debounce } from '../utils/helpers'
 const COLUMN_SETTINGS_KEY = 'store_detail_column_settings'
 
 /**
+ * 控制台日志开关（localStorage: psp_store_detail_debug=1）
+ */
+const isStoreDetailDebugEnabled = () => {
+	try {
+		return localStorage.getItem('psp_store_detail_debug') === '1'
+	} catch {
+		return false
+	}
+}
+
+/**
+ * 从任务编号解析规划月份，并生成未来 N 个月（含规划月）
+ * 任务编号命名规则：YYYY-MM-...
+ */
+const getPlanningMonthsFromTaskId = (taskId, count = 4) => {
+	try {
+		const match = String(taskId || '').match(/(20\d{2})-(0[1-9]|1[0-2])/)
+		if (!match) return []
+
+		const startYear = Number(match[1])
+		const startMonthIndex = Number(match[2]) - 1
+		const months = []
+
+		for (let i = 0; i < count; i += 1) {
+			const date = new Date(startYear, startMonthIndex + i, 1)
+			const month = String(date.getMonth() + 1).padStart(2, '0')
+			months.push(`${date.getFullYear()}-${month}`)
+		}
+
+		return months
+	} catch {
+		return []
+	}
+}
+
+/**
  * 店铺详情管理主函数
  * @param {string} storeId - 店铺ID
  * @param {string} taskId - 任务ID
@@ -72,27 +108,52 @@ export function useStoreDetail(storeId, taskId) {
 	 * 商品数据资源
 	 */
 	const commodityData = createResource({
-		url: 'product_sales_planning.api.v1.commodity.get_store_commodity_data',
-		params: () => ({
-			store_id: storeId,
-			task_id: taskId,
-			view_mode: 'multi',
-			start: (pagination.value.currentPage - 1) * pagination.value.pageSize,
-			page_length: pagination.value.pageSize,
-			search_term: filters.value.search || null,
-			category: filters.value.category || null
-		}),
-		auto: true,
-		transform: (data) => {
-			return {
-				commodities: data.data || [],
-				months: data.months || [],
-				store_info: data.store_info || {},
-				task_info: data.task_info || {},
-				can_edit: data.can_edit !== undefined ? data.can_edit : true,
-				total_count: data.total_count || 0
+			url: 'product_sales_planning.api.v1.commodity.get_store_commodity_data',
+			method: 'POST',
+			makeParams() {
+				const params = {
+					store_id: storeId,
+					task_id: taskId,
+					view_mode: 'multi',
+					start: (pagination.value.currentPage - 1) * pagination.value.pageSize,
+					page_length: pagination.value.pageSize,
+					search_term: filters.value.search || null,
+					category: filters.value.category || null
+				}
+				console.log('[StoreDetail] commodity params:', params)
+				return params
+			},
+			auto: true,
+			transform: (data) => {
+				const summary = {
+					status: data?.status,
+					message: data?.message,
+					total_count: data?.total_count,
+					months: data?.months,
+					data_length: Array.isArray(data?.data) ? data.data.length : 0
+				}
+				console.log('[StoreDetail] commodity response:', summary)
+				if (isStoreDetailDebugEnabled()) console.log('[StoreDetail] commodity response raw:', data)
+				if (data?.status && data.status !== 'success') {
+					return {
+						commodities: [],
+						months: data.months || [],
+						store_info: data.store_info || {},
+						task_info: data.task_info || {},
+						can_edit: false,
+						total_count: 0,
+						__error: data.message || '加载失败'
+					}
+				}
+				return {
+					commodities: data.data || [],
+					months: data.months || [],
+					store_info: data.store_info || {},
+					task_info: data.task_info || {},
+					can_edit: data.can_edit !== undefined ? data.can_edit : true,
+					total_count: data.total_count || 0
+				}
 			}
-		}
 	})
 
 	// ==================== 计算属性 ====================
@@ -118,6 +179,10 @@ export function useStoreDetail(storeId, taskId) {
 		return commodityData.data?.can_edit || false
 	})
 
+	const resourceError = computed(() => {
+		return commodityData.error || commodityData.data?.__error || null
+	})
+
 	/**
 	 * 总记录数
 	 */
@@ -136,7 +201,11 @@ export function useStoreDetail(storeId, taskId) {
 	 * 月份列表
 	 */
 	const months = computed(() => {
-		return commodityData.data?.months || []
+		const fromApi = commodityData.data?.months || []
+		if (Array.isArray(fromApi) && fromApi.length > 0) return fromApi
+
+		// 始终展示未来四个月表头（从规划月起）
+		return getPlanningMonthsFromTaskId(taskId, 4)
 	})
 
 	/**
@@ -144,6 +213,25 @@ export function useStoreDetail(storeId, taskId) {
 	 */
 	const rawCommodities = computed(() => {
 		return commodityData.data?.commodities || []
+	})
+
+	/**
+	 * 当前页商品数据（前端分页切片；兼容后端分页返回）
+	 */
+	const pagedCommodities = computed(() => {
+		const data = rawCommodities.value
+		if (!Array.isArray(data)) return []
+
+		const pageSize = Number(pagination.value.pageSize || 50)
+		const currentPage = Number(pagination.value.currentPage || 1)
+
+		// 兼容：若后端已经分页返回（数据长度 <= pageSize 且 totalCount 大于 pageSize），则无需再切片
+		if (data.length <= pageSize && totalCount.value > pageSize) {
+			return data
+		}
+
+		const start = Math.max(0, (currentPage - 1) * pageSize)
+		return data.slice(start, start + pageSize)
 	})
 
 	/**
@@ -293,9 +381,10 @@ export function useStoreDetail(storeId, taskId) {
 	 * 转换数据为表格格式
 	 */
 	const transformDataForTable = () => {
-		return rawCommodities.value.map((item, index) => {
+		return pagedCommodities.value.map((item) => {
 			const row = {
-				__selected: selectedRows.value.has(index),
+				// 选择状态由表格内部维护，避免全量数据重算导致卡顿
+				__selected: false,
 				name1: item.commodity_name || item.name1,
 				code: item.commodity_code || item.code,
 				specifications: item.specifications || '',
@@ -376,8 +465,16 @@ export function useStoreDetail(storeId, taskId) {
 	/**
 	 * 刷新数据
 	 */
-	const refreshData = async () => {
-		await commodityData.reload()
+		const refreshData = async () => {
+			await commodityData.reload()
+			const error = resourceError.value
+			if (error) {
+				throw typeof error === 'string' ? new Error(error) : error
+			}
+			return {
+				success: true,
+				message: `已刷新，共 ${commodityData.data?.total_count || 0} 条`
+			}
 	}
 
 	/**
@@ -396,7 +493,6 @@ export function useStoreDetail(storeId, taskId) {
 	const updatePagination = (newPagination) => {
 		pagination.value = { ...pagination.value, ...newPagination }
 		clearSelection()
-		commodityData.reload()
 	}
 
 	/**
@@ -407,15 +503,15 @@ export function useStoreDetail(storeId, taskId) {
 		saveError.value = null
 
 		try {
-			const fixedColumnCount = 6 // 选择框 + 5个固定列
-			const updates = changes
-				.map(([row, col, oldValue, newValue]) => {
-					const commodity = rawCommodities.value[row]
-					const monthIndex = col - fixedColumnCount
+				const fixedColumnCount = 6 // 选择框 + 5个固定列
+				const updates = changes
+					.map(([row, col, oldValue, newValue]) => {
+						const commodity = pagedCommodities.value[row]
+						const monthIndex = col - fixedColumnCount
 
-					if (!commodity || monthIndex < 0 || monthIndex >= months.value.length) {
-						return null
-					}
+						if (!commodity || monthIndex < 0 || monthIndex >= months.value.length) {
+							return null
+						}
 
 					return {
 						code: commodity.commodity_code || commodity.code,
@@ -492,7 +588,7 @@ export function useStoreDetail(storeId, taskId) {
 		// 更新选中的商品编码
 		const codes = new Set()
 		rowIndices.forEach(rowIndex => {
-			const commodity = rawCommodities.value[rowIndex]
+			const commodity = pagedCommodities.value[rowIndex]
 			if (commodity) {
 				const code = commodity.commodity_code || commodity.code
 				if (code) {
@@ -626,9 +722,9 @@ export function useStoreDetail(storeId, taskId) {
 		selectedCount,
 		hasSelection,
 
-		// 加载状态
-		loading: computed(() => commodityData.loading),
-		error: computed(() => commodityData.error),
+			// 加载状态
+			loading: computed(() => commodityData.loading),
+			error: resourceError,
 
 		// 表格相关
 		generateColumns,
