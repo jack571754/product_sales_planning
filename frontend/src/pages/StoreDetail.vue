@@ -748,6 +748,7 @@ onBeforeUnmount(() => cleanup && cleanup())
     display: flex;
     flex-direction: column;
     position: relative;
+    z-index: 0; /* 创建 stacking context，避免 Handsontable 内部 z-index 覆盖下拉框 */
     overflow: hidden;
     min-height: 0;
 }
@@ -757,6 +758,11 @@ onBeforeUnmount(() => cleanup && cleanup())
     flex-shrink: 0;
     border-top: 1px solid #f3f4f6;
     background: #ffffff;
+    min-width: 0;
+    width: 100%;
+    overflow: visible;
+    position: relative;
+    z-index: 10;
 }
 
 /* DataTable Wrapper - Critical Fix */

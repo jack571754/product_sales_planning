@@ -4,7 +4,7 @@
 		:class="wrapperClass"
 	>
 		<!-- 左侧：每页显示数量选择 -->
-		<div class="flex items-center gap-2 flex-shrink-0">
+		<div class="pagination-left flex items-center gap-2 flex-shrink-0">
 			<span class="text-sm text-gray-600 whitespace-nowrap">每页</span>
 			<Select
 				v-model="localPageSize"
@@ -16,12 +16,12 @@
 		</div>
 
 		<!-- 中间：分页信息 -->
-		<div class="text-sm text-gray-600 whitespace-nowrap flex-shrink-0">
+		<div class="pagination-center text-sm text-gray-600 whitespace-nowrap flex-shrink-0">
 			{{ startIndex }}-{{ endIndex }} / {{ totalItems }}
 		</div>
 
 		<!-- 右侧：分页按钮 -->
-		<div class="flex items-center gap-1 flex-shrink-0">
+		<div class="pagination-right flex items-center gap-1 flex-shrink-0">
 			<Button
 				variant="ghost"
 				theme="gray"
@@ -128,9 +128,9 @@ const pageSizeSelectOptions = computed(() =>
 
 const wrapperTag = computed(() => (props.variant === 'embedded' ? 'div' : Card))
 const wrapperClass = computed(() => {
-	const base = 'flex items-center justify-between gap-2 overflow-x-auto'
+	const base = 'flex items-center justify-between gap-2 min-w-0 flex-wrap'
 	if (props.variant === 'embedded') {
-		return `${base} p-2`
+		return `${base} p-3`
 	}
 	return `${base} p-3`
 })
@@ -190,3 +190,34 @@ watch(() => props.pageSize, (newSize) => {
 	localPageSize.value = newSize
 })
 </script>
+
+<style scoped>
+/* 确保分页器容器正确显示 */
+.pagination-left,
+.pagination-center,
+.pagination-right {
+	display: flex;
+	align-items: center;
+}
+
+/* 响应式布局 - 小屏幕时调整 */
+@media (max-width: 768px) {
+	.pagination-center {
+		order: -1;
+		width: 100%;
+		justify-content: center;
+		margin-bottom: 0.5rem;
+	}
+	
+	.pagination-left,
+	.pagination-right {
+		flex: 1;
+	}
+}
+
+/* 确保按钮组不会被压缩 */
+.pagination-right > div {
+	display: flex;
+	flex-wrap: nowrap;
+}
+</style>
