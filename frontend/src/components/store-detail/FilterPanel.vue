@@ -1,14 +1,14 @@
 <template>
-	<Card class="p-3">
-		<div class="flex flex-wrap gap-3 items-end">
-			<!-- 搜索框 -->
-			<div class="flex-1 min-w-[240px]">
+	<Card class="p-2">
+		<div class="flex flex-wrap gap-2 items-center">
+			<!-- 搜索框 - 无 label，更紧凑 -->
+			<div class="flex-1 min-w-[200px] max-w-[320px]">
 				<Input
 					v-model="localFilters.search"
-					label="搜索商品"
 					:disabled="loading"
-					placeholder="输入商品编码或名称..."
+					placeholder="搜索商品编码或名称..."
 					@update:model-value="handleFilterChange"
+					size="sm"
 				>
 					<template #prefix>
 						<FeatherIcon name="search" class="w-4 h-4 text-gray-400" />
@@ -16,41 +16,32 @@
 				</Input>
 			</div>
 
-			<!-- 分类筛选 -->
-			<div class="w-56">
+			<!-- 分类筛选 - 无 label，更紧凑 -->
+			<div class="w-40">
 				<Select
 					v-model="localFilters.category"
-					label="分类"
 					:options="categoryOptions"
 					:disabled="loading"
-					placeholder="全部"
+					placeholder="选择分类"
 					@update:model-value="handleFilterChange"
+					size="sm"
 				/>
 			</div>
 
-			<!-- 重置按钮 -->
-			<div class="flex items-center gap-2">
-				<Button
-					variant="subtle"
-					theme="gray"
-					icon-left="rotate-ccw"
-					:loading="loading"
-					@click="handleReset"
-				>
-					重置
-				</Button>
-				<Badge v-if="activeFilterCount > 0" theme="blue" size="sm">
-					已应用 {{ activeFilterCount }} 项筛选
-				</Badge>
-			</div>
-		</div>
-
-		<div v-if="activeFilterCount > 0" class="mt-2 flex flex-wrap gap-2">
-			<Badge v-if="localFilters.search" theme="gray" size="sm">
-				搜索: {{ localFilters.search }}
-			</Badge>
-			<Badge v-if="localFilters.category" theme="gray" size="sm">
-				分类: {{ localFilters.category }}
+			<!-- 重置按钮和筛选计数 -->
+			<Button
+				variant="subtle"
+				theme="gray"
+				icon-left="rotate-ccw"
+				:loading="loading"
+				@click="handleReset"
+				size="sm"
+			>
+				重置
+			</Button>
+			
+			<Badge v-if="activeFilterCount > 0" theme="blue" size="sm">
+				{{ activeFilterCount }} 项筛选
 			</Badge>
 		</div>
 	</Card>

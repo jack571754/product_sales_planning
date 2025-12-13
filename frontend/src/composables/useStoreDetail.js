@@ -79,7 +79,7 @@ export function useStoreDetail(storeId, taskId) {
 	const pagination = ref({
 		currentPage: 1,
 		pageSize: 50,
-		pageSizeOptions: [20, 50, 100, 200]
+		pageSizeOptions: [20, 50, 100, 200, 500]
 	})
 
 	/**

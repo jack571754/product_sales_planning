@@ -4,27 +4,28 @@
 		:class="wrapperClass"
 	>
 		<!-- 左侧：每页显示数量选择 -->
-		<div class="flex items-center gap-2">
-			<span class="text-sm text-gray-600">每页显示</span>
+		<div class="flex items-center gap-2 flex-shrink-0">
+			<span class="text-sm text-gray-600 whitespace-nowrap">每页</span>
 			<Select
 				v-model="localPageSize"
 				:options="pageSizeSelectOptions"
 				size="sm"
 				@update:model-value="handlePageSizeChange"
 			/>
-			<span class="text-sm text-gray-600">条</span>
+			<span class="text-sm text-gray-600 whitespace-nowrap">条</span>
 		</div>
 
 		<!-- 中间：分页信息 -->
-		<div class="text-sm text-gray-600">
-			显示 {{ startIndex }} - {{ endIndex }} 条，共 {{ totalItems }} 条
+		<div class="text-sm text-gray-600 whitespace-nowrap flex-shrink-0">
+			{{ startIndex }}-{{ endIndex }} / {{ totalItems }}
 		</div>
 
 		<!-- 右侧：分页按钮 -->
-		<div class="flex items-center gap-2">
+		<div class="flex items-center gap-1 flex-shrink-0">
 			<Button
 				variant="ghost"
 				theme="gray"
+				size="sm"
 				icon-left="chevrons-left"
 				:disabled="currentPage === 1"
 				@click="goToPage(1)"
@@ -32,6 +33,7 @@
 			<Button
 				variant="ghost"
 				theme="gray"
+				size="sm"
 				icon-left="chevron-left"
 				:disabled="currentPage === 1"
 				@click="goToPage(currentPage - 1)"
@@ -47,12 +49,13 @@
 					>
 						{{ page }}
 					</Button>
-					<span v-else class="px-2 text-gray-500">...</span>
+					<span v-else class="px-1 text-gray-500 text-sm">...</span>
 				</template>
 			</div>
 			<Button
 				variant="ghost"
 				theme="gray"
+				size="sm"
 				icon-left="chevron-right"
 				:disabled="currentPage === totalPages"
 				@click="goToPage(currentPage + 1)"
@@ -60,6 +63,7 @@
 			<Button
 				variant="ghost"
 				theme="gray"
+				size="sm"
 				icon-left="chevrons-right"
 				:disabled="currentPage === totalPages"
 				@click="goToPage(totalPages)"
@@ -92,7 +96,7 @@ const props = defineProps({
 	},
 	pageSizeOptions: {
 		type: Array,
-		default: () => [20, 50, 100, 200]
+		default: () => [20, 50, 100, 200, 500]
 	},
 	variant: {
 		type: String,
@@ -124,11 +128,11 @@ const pageSizeSelectOptions = computed(() =>
 
 const wrapperTag = computed(() => (props.variant === 'embedded' ? 'div' : Card))
 const wrapperClass = computed(() => {
-	const base = 'flex flex-wrap items-center justify-between gap-3'
+	const base = 'flex items-center justify-between gap-2 overflow-x-auto'
 	if (props.variant === 'embedded') {
-		return `${base} p-3`
+		return `${base} p-2`
 	}
-	return `${base} p-4`
+	return `${base} p-3`
 })
 
 // 计算显示的页码（最多显示 7 个页码）

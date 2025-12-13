@@ -25,7 +25,7 @@
 
                 <div class="header-actions">
                     <div class="desktop-actions">
-                        <template v-if="canEdit">
+                        <template v-if="finalCanEdit">
                             <Button variant="outline" theme="blue" @click="showImportDialog = true">
                                 <template #prefix><FeatherIcon name="upload" class="h-4 w-4" /></template>
                                 单品导入
@@ -74,6 +74,31 @@
         <div class="main-content" :class="{ 'opacity-50 pointer-events-none': loading && !tableData.length }">
             
             <StatsCards v-if="statistics" :statistics="statistics" class="stats-section" />
+
+            <!-- 审批状态卡片 -->
+            <ApprovalStatusCard
+                v-if="shouldShowApprovalCard"
+                :has-workflow="hasWorkflow"
+                :current-status="currentStatus"
+                :status-text="statusText"
+                :status-theme="statusTheme"
+                :can-submit="canSubmit"
+                :can-withdraw="canWithdraw"
+                :can-approve="canApprove"
+                :current-step="currentStep"
+                :workflow-steps="workflowSteps"
+                :rejection-reason="rejectionReason"
+                :approval-history="approvalHistory"
+                :history-loading="historyLoading"
+                :submitting="submitting"
+                :withdrawing="withdrawing"
+                :approving="approving"
+                @submit="handleSubmitApproval"
+                @withdraw="handleWithdrawApproval"
+                @approve="handleApproveTask"
+                @refresh-history="fetchApprovalHistory"
+                class="approval-section"
+            />
 
             <FilterPanel
                 v-if="filterOptions"
@@ -212,9 +237,9 @@
 
 	                                <div v-if="!(filters.search || filters.category)" class="mt-3 text-sm text-gray-700">
 	                                    <div class="font-medium text-gray-900">数据录入方式</div>
-	                                    <ol v-if="canEdit" class="mt-2 list-decimal pl-5 space-y-1 text-gray-700">
-	                                        <li>点击“添加商品”，选择需要规划的商品。</li>
-	                                        <li>或点击“单品导入”，使用 Excel 模板批量导入商品/计划。</li>
+	                                    <ol v-if="finalCanEdit" class="mt-2 list-decimal pl-5 space-y-1 text-gray-700">
+	                                        <li>点击"添加商品"，选择需要规划的商品。</li>
+	                                        <li>或点击"单品导入"，使用 Excel 模板批量导入商品/计划。</li>
 	                                        <li>在表格中录入各月数量，编辑后将自动保存到数据库。</li>
 	                                    </ol>
 	                                    <div v-else class="mt-2 text-sm text-gray-700">
@@ -234,7 +259,7 @@
 
 	                                    <template v-else>
 	                                        <Button
-	                                            v-if="canEdit"
+	                                            v-if="finalCanEdit"
 	                                            variant="solid"
 	                                            theme="purple"
 	                                            @click="showAddDialog = true"
@@ -242,7 +267,7 @@
 	                                            添加商品
 	                                        </Button>
 	                                        <Button
-	                                            v-if="canEdit"
+	                                            v-if="finalCanEdit"
 	                                            variant="outline"
 	                                            theme="blue"
 	                                            @click="showImportDialog = true"
@@ -262,11 +287,11 @@
 	                    <DataTable
 	                        v-if="tableColumns && tableColumns.length > 0"
 	                        ref="dataTableRef"
-	                        class="data-table-wrapper" 
+	                        class="data-table-wrapper"
 	                        :data="tableData"
 	                        :columns="tableColumns"
-	                        :read-only="!canEdit"
-	                        :can-edit="canEdit"
+	                        :read-only="!finalCanEdit"
+	                        :can-edit="finalCanEdit"
 	                        :hidden-columns="columnSettings.hiddenColumns"
 	                        @change="handleTableChange"
 	                        @selection-change="handleSelectionChange"
@@ -349,11 +374,13 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button, Badge, Dropdown, FeatherIcon, Alert, Dialog, toast } from 'frappe-ui'
 import { useStoreDetail } from '../composables/useStoreDetail'
+import { useApproval } from '../composables/useApproval'
 import { formatTime } from '../utils/helpers'
 
 // Components
 import FilterPanel from '../components/store-detail/FilterPanel.vue'
 import StatsCards from '../components/store-detail/StatsCards.vue'
+import ApprovalStatusCard from '../components/store-detail/ApprovalStatusCard.vue'
 import PaginationControls from '../components/store-detail/PaginationControls.vue'
 import ProductImportDialog from '../components/store-detail/dialogs/ProductImportDialog.vue'
 import ProductAddDialog from '../components/store-detail/dialogs/ProductAddDialog.vue'
@@ -367,7 +394,7 @@ const props = defineProps({
 
 const router = useRouter()
 
-// Composable
+// Composable - Store Detail
 const {
     filters, pagination, filteredCommodities, storeInfo, taskInfo, columnSettings,
     canEdit, statistics, totalPages, totalCount, loading, error,
@@ -378,6 +405,34 @@ const {
     updateSelectedRows, batchDeleteSelected, toggleColumn, cleanup
 } = useStoreDetail(props.storeId, props.taskId)
 
+// Composable - Approval
+const {
+    approvalStatus,
+    approvalHistory,
+    statusLoading,
+    historyLoading,
+    submitting,
+    withdrawing,
+    approving,
+    hasWorkflow,
+    shouldShowApprovalCard,
+    currentStatus,
+    currentStep,
+    workflowSteps,
+    rejectionReason,
+    canSubmit,
+    canWithdraw,
+    canApprove,
+    statusText,
+    statusTheme,
+    fetchApprovalStatus,
+    fetchApprovalHistory,
+    submitForApproval,
+    withdrawApproval,
+    approveTask,
+    refreshApprovalData
+} = useApproval(props.storeId, props.taskId)
+
 // Local State
 const dataTableRef = ref(null)
 const showImportDialog = ref(false)
@@ -386,6 +441,41 @@ const showDeleteDialog = ref(false)
 const exporting = ref(false)
 const deleting = ref(false)
 const debugMode = ref(false) // Set to true to see debug info
+
+// Computed - 综合考虑审批状态的编辑权限
+const finalCanEdit = computed(() => {
+    // 基础编辑权限（来自后端）
+    const baseCanEdit = canEdit.value
+    
+    // 如果没有审批流程，直接返回基础权限
+    if (!hasWorkflow.value || !approvalStatus.value) {
+        return baseCanEdit
+    }
+    
+    // 如果有审批流程，需要检查审批状态
+    const state = approvalStatus.value.workflow?.current_state
+    if (!state) {
+        return baseCanEdit
+    }
+    
+    // 审批中（已提交且待审批）不可编辑
+    if (state.status === '已提交' && state.approval_status === '待审批') {
+        return false
+    }
+    
+    // 已通过不可编辑
+    if (state.approval_status === '已通过') {
+        return false
+    }
+    
+    // 已驳回时，根据 can_edit 标志决定
+    if (state.approval_status === '已驳回') {
+        return baseCanEdit && (state.can_edit !== false)
+    }
+    
+    // 其他情况返回基础权限
+    return baseCanEdit
+})
 
 // Computed
 const tableColumns = computed(() => {
@@ -427,7 +517,7 @@ const errorText = computed(() => {
 
 const dropdownActions = computed(() => {
     const actions = []
-    if (canEdit.value) {
+    if (finalCanEdit.value) {
         actions.push(
             {
                 label: '批量删除',
@@ -514,16 +604,64 @@ const selectAllRows = () => dataTableRef.value?.selectAll?.()
 const invertSelectionRows = () => dataTableRef.value?.invertSelection?.()
 const clearSelectionRows = () => dataTableRef.value?.clearSelection?.()
 
+// Approval Event Handlers
+const handleSubmitApproval = async (comment) => {
+    const result = await submitForApproval(comment)
+    if (result.success) {
+        toast.success(result.message)
+        await refreshData() // 刷新商品数据
+    } else {
+        toast.error(result.message)
+    }
+}
+
+const handleWithdrawApproval = async (comment) => {
+    const result = await withdrawApproval(comment)
+    if (result.success) {
+        toast.success(result.message)
+        await refreshData()
+    } else {
+        toast.error(result.message)
+    }
+}
+
+const handleApproveTask = async (action, comment) => {
+    const result = await approveTask(action, comment)
+    if (result.success) {
+        toast.success(result.message)
+        await refreshData()
+    } else {
+        toast.error(result.message)
+    }
+}
+
 // Watchers
 watch([filters, pagination], () => updateSelectedRows([]), { deep: true })
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
     console.log('StoreDetail Mounted', {
         storeId: props.storeId,
         taskId: props.taskId
     })
+    
+    // 获取审批状态和历史
+    await fetchApprovalStatus()
+    await fetchApprovalHistory()
+    
+    // 输出审批调试信息
+    console.log('=== 审批功能调试信息 ===')
+    console.log('hasWorkflow:', hasWorkflow.value)
+    console.log('statusLoading:', statusLoading.value)
+    console.log('approvalStatus:', approvalStatus.value)
+    console.log('currentStatus:', currentStatus.value)
+    console.log('canSubmit:', canSubmit.value)
+    console.log('canWithdraw:', canWithdraw.value)
+    console.log('canApprove:', canApprove.value)
+    console.log('workflowSteps:', workflowSteps.value)
+    console.log('========================')
 })
+
 onBeforeUnmount(() => cleanup && cleanup())
 </script>
 
@@ -569,8 +707,8 @@ onBeforeUnmount(() => cleanup && cleanup())
     min-height: 0;
 }
 
-/* Stats & Filter & Toolbar */
-.stats-section, .filter-section { flex-shrink: 0; margin-bottom: 0.75rem; }
+/* Stats & Approval & Filter & Toolbar */
+.stats-section, .approval-section, .filter-section { flex-shrink: 0; margin-bottom: 0.75rem; }
 
 .toolbar-section {
     background: white;
