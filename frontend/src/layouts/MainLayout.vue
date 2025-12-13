@@ -14,9 +14,25 @@
 				@toggle-theme="toggleTheme"
 			/>
 
-			<!-- 页面内容 -->
+			<!-- 页面内容 - 使用错误边界包裹 -->
 			<main class="flex-1 overflow-auto bg-gray-50">
-				<router-view />
+				<ErrorBoundary>
+					<router-view v-slot="{ Component }">
+						<Suspense>
+							<template #default>
+								<component :is="Component" />
+							</template>
+							<template #fallback>
+								<div class="flex items-center justify-center min-h-screen">
+									<div class="flex items-center gap-3 text-gray-600">
+										<div class="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-blue-600"></div>
+										<span>加载中...</span>
+									</div>
+								</div>
+							</template>
+						</Suspense>
+					</router-view>
+				</ErrorBoundary>
 			</main>
 		</div>
 	</div>
@@ -26,6 +42,7 @@
 import { ref, watch, onMounted } from 'vue'
 import Sidebar from '../components/Sidebar.vue'
 import TopBar from '../components/TopBar.vue'
+import ErrorBoundary from '../components/ErrorBoundary.vue'
 
 // 侧边栏折叠状态（默认展开）
 const sidebarCollapsed = ref(false)

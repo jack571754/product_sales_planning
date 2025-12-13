@@ -153,6 +153,7 @@
               :key="`${task.parent_id}-${task.store_id}`"
               @click="goToStoreDetail(task.store_id, task.parent_id)"
               class="group relative flex items-start gap-4 rounded-lg border border-gray-100 bg-white p-4 transition-all hover:border-gray-300 hover:shadow-sm cursor-pointer"
+              :class="{ 'opacity-50 cursor-not-allowed': !task.store_id || !task.parent_id }"
             >
               <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-100 border border-gray-200 text-sm font-bold text-gray-600 group-hover:bg-white">
                 {{ getAvatar(task.title) }}
@@ -226,7 +227,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Button, Select, MultiSelect, FeatherIcon, createResource, Badge } from 'frappe-ui'
+import { Button, Select, MultiSelect, FeatherIcon, createResource, Badge, toast } from 'frappe-ui'
 
 // ==================== Router ====================
 const router = useRouter()
@@ -300,7 +301,19 @@ const stats = computed(() => ({
   completed_count: allTabsCount.data?.stats?.completed_count || 0
 }))
 
-const taskList = computed(() => dashboardData.data?.tasks || [])
+const taskList = computed(() => {
+  const tasks = dashboardData.data?.tasks || []
+  
+  // 验证数据完整性
+  if (tasks.length > 0) {
+    const invalidTasks = tasks.filter(t => !t.store_id || !t.parent_id)
+    if (invalidTasks.length > 0) {
+      console.warn('⚠️ 发现无效任务数据:', invalidTasks)
+    }
+  }
+  
+  return tasks
+})
 
 const tabs = computed(() => [
   { label: '待完成', value: 'pending', count: stats.value.pending_count },
@@ -336,11 +349,59 @@ const switchTab = (tab) => {
   applyFilters() // reload 会自动调用 makeParams
 }
 
-const goToStoreDetail = (storeId, parentId) => {
-  router.push({
-    name: 'StoreDetail',
-    params: { storeId, taskId: parentId }
-  })
+const goToStoreDetail = async (storeId, parentId) => {
+  // 验证参数
+  if (!storeId || !parentId) {
+    console.error('❌ 跳转失败：缺少必要参数', { storeId, parentId })
+    toast.error('数据异常，无法跳转到店铺详情')
+    return
+  }
+
+  // 确保参数是字符串类型
+  const safeStoreId = String(storeId).trim()
+  const safeTaskId = String(parentId).trim()
+
+  // 再次验证处理后的参数
+  if (!safeStoreId || !safeTaskId || safeStoreId === 'undefined' || safeTaskId === 'undefined') {
+    console.error('❌ 跳转失败：参数无效', { safeStoreId, safeTaskId })
+    toast.error('数据异常，无法跳转到店铺详情')
+    return
+  }
+
+  console.log('🔄 准备跳转到店铺详情:', { storeId: safeStoreId, taskId: safeTaskId })
+
+  try {
+    // 使用命名路由跳转
+    await router.push({
+      name: 'StoreDetail',
+      params: {
+        storeId: safeStoreId,
+        taskId: safeTaskId
+      }
+    })
+    console.log('✅ 路由跳转成功')
+  } catch (error) {
+    console.error('❌ 路由跳转失败:', error)
+    
+    // 检查是否是导航重复错误（可以忽略）
+    if (error.name === 'NavigationDuplicated') {
+      console.log('⚠️ 导航重复，已在目标页面')
+      return
+    }
+    
+    // 显示错误提示
+    toast.error('页面跳转失败，请重试')
+    
+    // 尝试使用路径方式跳转作为备用方案
+    try {
+      console.log('🔄 尝试备用路由方式...')
+      await router.push(`/store-detail/${safeStoreId}/${safeTaskId}`)
+      console.log('✅ 备用路由跳转成功')
+    } catch (fallbackError) {
+      console.error('❌ 备用路由也失败:', fallbackError)
+      toast.error('页面跳转异常，请刷新页面后重试')
+    }
+  }
 }
 
 // ==================== UI 辅助 ====================
